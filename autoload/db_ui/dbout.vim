@@ -257,41 +257,24 @@ function! s:do_save_content() abort
 endfunction
 
 function! db_ui#dbout#switch_to_result(query_bufnr) abort
-  let dbout_bufnr = db_ui#dbout#get_dbout_for_query(a:query_bufnr)
-  
-  call db_ui#utils#print_debug({
-        \ 'message': 'switch_to_result called',
-        \ 'query_bufnr': a:query_bufnr,
-        \ 'mapped_dbout_bufnr': dbout_bufnr,
-        \ 'current_bufnr': bufnr()
-        \ })
-  
-  if dbout_bufnr <= 0
+  if !has_key(s:query_dbout_content, a:query_bufnr)
     return
   endif
 
-  " Find the dbout window
-  let dbout_win = bufwinnr(dbout_bufnr)
-  if dbout_win > 0
-    " dbout window already showing this buffer, nothing to do
-    return
-  endif
+  let saved_content = s:query_dbout_content[a:query_bufnr]
 
-  " Look for any dbout window and switch it
+  " Find dbout window and restore content
   for win in range(1, winnr('$'))
     let wbuf = winbufnr(win)
     if getbufvar(wbuf, '&filetype') ==? 'dbout'
-      " This is a dbout window, switch it to our dbout
-      let current_win = winnr()
-      exe win.'wincmd w'
-      exe 'silent! buffer '.dbout_bufnr
-      exe current_win.'wincmd w'
-      
-      call db_ui#utils#print_debug({
-            \ 'message': 'Switched dbout window',
-            \ 'dbout_win': dbout_win,
-            \ 'new_dbout_bufnr': dbout_bufnr
-            \ })
+      let old_modifiable = getbufvar(wbuf, '&modifiable')
+      call setbufvar(wbuf, '&modifiable', 1)
+      call setbufline(wbuf, 1, saved_content)
+      let total = getbufinfo(wbuf)[0].linecount
+      if total > len(saved_content)
+        call deletebufline(wbuf, len(saved_content) + 1, total)
+      endif
+      call setbufvar(wbuf, '&modifiable', old_modifiable)
       return
     endif
   endfor
