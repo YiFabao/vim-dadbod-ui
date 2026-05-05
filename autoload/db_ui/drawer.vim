@@ -1107,42 +1107,38 @@ function! s:sort_dbout(a1, a2)
 endfunction
 
 function! s:search_files() abort
-  " Enter search mode with real-time filtering
   let s:search_query = ''
   call s:drawer_instance.render({ 'queries': 1 })
-  
-  " Move to search input at top
   call cursor(1, 1)
-  
-  " Show search prompt
   echo 'Search: '
-  
+
   try
     while 1
       let char = getchar()
       
-      " Check for Enter (13) or Escape (27)
+      " Enter or Escape
       if char == 13 || char == 27
         break
-      elseif char == 3
-        " Ctrl-C
+      endif
+      
+      " Ctrl-C
+      if char == 3
         let s:search_query = ''
         break
-      elseif type(char) == 0 && char >= 32 && char <= 126
-        " Printable ASCII characters
+      endif
+      
+      " Printable characters (space to tilde)
+      if type(char) == 0 && char >= 32 && char <= 126
         let s:search_query .= nr2char(char)
-      elseif type(char) == 0 || (type(char) == 1 && char =~ '^\(<BS>\|<Del>\|<C-H>\)')
-        " Any non-printable character or known backspace/delete codes
-        " Treat as backspace - remove last character
+      else
+        " Everything else is backspace
         if len(s:search_query) > 0
           let s:search_query = s:search_query[0:-2]
         endif
       endif
-      
-      " Re-render with updated search query
+
       call s:drawer_instance.render({ 'queries': 1 })
-      
-      " Show current search
+
       if empty(s:search_query)
         echo 'Search: '
       else
@@ -1150,18 +1146,16 @@ function! s:search_files() abort
       endif
     endwhile
   catch /^Vim:Interrupt$/
-    " Handle Ctrl-C
   endtry
-  
-  echo ''  " Clear echo
-  
+
+  echo ''
+
   if empty(s:search_query)
     let s:search_query = ''
     call s:drawer_instance.render({ 'queries': 1 })
     return
   endif
-  
-  " Find first matching file and move cursor to it
+
   let lines = getline(1, '$')
   let idx = 0
   for line in lines
@@ -1171,7 +1165,7 @@ function! s:search_files() abort
     endif
     let idx += 1
   endfor
-  
+
   call db_ui#notifications#info('No matches found for: '.s:search_query)
 endfunction
 
