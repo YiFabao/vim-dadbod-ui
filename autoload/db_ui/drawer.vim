@@ -51,6 +51,7 @@ function! s:drawer.open(...) abort
   nnoremap <silent><buffer> A :call <sid>method('add_query_dir')<CR>
   nnoremap <silent><buffer> / :call <sid>method('search_files')<CR>
   nnoremap <silent><buffer> <C-c> :call <sid>method('clear_search')<CR>
+  nnoremap <silent><buffer> <Plug>(DBUI_SearchContent) :call <sid>method('search_content')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_ToggleDetails) :call <sid>method('toggle_details')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_RenameLine) :call <sid>method('rename_line')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_Quit) :call <sid>method('quit')<CR>
@@ -117,6 +118,9 @@ function! s:method(method_name, ...) abort
   endif
   if a:method_name ==? 'clear_search'
     return s:clear_search()
+  endif
+  if a:method_name ==? 'search_content'
+    return s:search_content()
   endif
   
   if a:0 > 0
@@ -450,6 +454,7 @@ function! s:drawer.render_help() abort
     call self.add('" <C-p>/<C-n> - Go to parent/child node', 'noaction', 'help', '', '', 0)
     call self.add('" / - Search files (expands matching directories)', 'noaction', 'help', '', '', 0)
     call self.add('" <C-c> - Clear search', 'noaction', 'help', '', '', 0)
+    call self.add('" <leader>se - Search file content (requires Telescope)', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>W - (sql) Save currently opened query', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>E - (sql) Edit bind parameters in opened query', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>S - (sql) Execute query in visual or normal mode', 'noaction', 'help', '', '', 0)
@@ -1176,4 +1181,25 @@ endfunction
 function! s:clear_search() abort
   let s:search_query = ''
   call s:drawer_instance.render({ 'queries': 1 })
+endfunction
+
+function! s:search_content() abort
+  let item = s:drawer_instance.get_current_item()
+  if empty(item) || empty(item.dbui_db_key_name)
+    return db_ui#notifications#error('Please select a database connection first.')
+  endif
+  
+  let db = s:drawer_instance.dbui.dbs[item.dbui_db_key_name]
+  if empty(db.save_path) || !isdirectory(db.save_path)
+    return db_ui#notifications#error('No save location configured.')
+  endif
+  
+  try
+    execute 'Telescope live_grep search_dirs={"' . db.save_path . '"}'
+  catch /E492/
+    " Not a valid editor command
+    return db_ui#notifications#error('Telescope is not installed. Please install nvim-telescope/telescope.nvim')
+  catch /.*/
+    return db_ui#notifications#error('Failed to open search: '.v:exception)
+  endtry
 endfunction
