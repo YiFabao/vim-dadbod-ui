@@ -340,6 +340,14 @@ Press `<leader>se` to search saved query file contents using Telescope:
 vim.keymap.set("n", "<leader>se", "<Plug>(DBUI_SearchContent)", { desc = "Search saved queries content" })
 ```
 
+### Per-Query Result Buffers
+
+Each SQL editor buffer maintains its own query result:
+
+- When you switch between query buffers, the result window automatically updates to show the corresponding results
+- Each query's output is saved independently
+- No more overwriting results when running multiple queries
+- Works seamlessly with `bufferline` and other buffer switching methods
 
 For queries, filetype is automatically set to `sql`. Also, two mappings is added for the `sql` filetype:
 
