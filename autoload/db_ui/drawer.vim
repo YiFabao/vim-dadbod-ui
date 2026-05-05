@@ -1219,5 +1219,5 @@ function! s:search_content() abort
     return db_ui#notifications#error('No save location configured.')
   endif
 
-  lua require('db_ui.telescope').run_search(vim.eval('db.save_path'))
+  lua require('db_ui.telescope').run_search(vim.api.nvim_eval('db.save_path'))
 endfunction
