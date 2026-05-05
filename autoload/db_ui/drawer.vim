@@ -47,6 +47,8 @@ function! s:drawer.open(...) abort
   nnoremap <silent><buffer> <Plug>(DBUI_AddConnection) :call <sid>method('add_connection')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_AddQueryDir) :call <sid>method('add_query_dir')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_AddQueryFile) :call <sid>method('add_query_file')<CR>
+  nnoremap <silent><buffer> a :call <sid>method('add_query_file')<CR>
+  nnoremap <silent><buffer> A :call <sid>method('add_query_dir')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_ToggleDetails) :call <sid>method('toggle_details')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_RenameLine) :call <sid>method('rename_line')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_Quit) :call <sid>method('quit')<CR>
@@ -108,20 +110,41 @@ function! s:method(method_name, ...) abort
   return s:drawer_instance[a:method_name]()
 endfunction
 
-function! s:add_query_dir() abort
-  let item = s:drawer_instance.get_current_item()
-  if item.type ==? 'db'
-    return s:drawer_instance.add_saved_query_directory(s:drawer_instance.dbui.dbs[item.dbui_db_key_name])
-  endif
-  return db_ui#notifications#error('Please navigate to a database connection first.')
-endfunction
-
 function! s:add_query_file() abort
   let item = s:drawer_instance.get_current_item()
+  
   if item.type ==? 'db'
     return s:drawer_instance.add_saved_query_file(s:drawer_instance.dbui.dbs[item.dbui_db_key_name])
   endif
-  return db_ui#notifications#error('Please navigate to a database connection first.')
+  
+  if item.type ==? 'saved_query_dir'
+    let db = s:drawer_instance.dbui.dbs[item.dbui_db_key_name]
+    return s:drawer_instance.add_saved_query_file_in_dir(db, item.dir_full_path)
+  endif
+  
+  if item.type ==? 'buffer' && has_key(item, 'saved')
+    let db = s:drawer_instance.dbui.dbs[item.dbui_db_key_name]
+    let parent_dir = fnamemodify(item.file_path, ':h')
+    let rel_dir = substitute(parent_dir, db.save_path . '/', '', '')
+    return s:drawer_instance.add_saved_query_file_in_dir(db, rel_dir)
+  endif
+  
+  return db_ui#notifications#error('Please navigate to a database connection or saved query directory first.')
+endfunction
+
+function! s:add_query_dir() abort
+  let item = s:drawer_instance.get_current_item()
+  
+  if item.type ==? 'db'
+    return s:drawer_instance.add_saved_query_directory(s:drawer_instance.dbui.dbs[item.dbui_db_key_name])
+  endif
+  
+  if item.type ==? 'saved_query_dir'
+    let db = s:drawer_instance.dbui.dbs[item.dbui_db_key_name]
+    return s:drawer_instance.add_saved_query_subdirectory(db, item.dir_full_path)
+  endif
+  
+  return db_ui#notifications#error('Please navigate to a database connection or saved query directory first.')
 endfunction
 
 function! s:drawer.goto_sibling(direction)
@@ -670,6 +693,56 @@ function! s:drawer.add_saved_query_file(db) abort
     call self.render({ 'queries': 1 })
   catch /.*/
     return db_ui#notifications#error('Failed to create file: '.v:exception)
+  endtry
+endfunction
+
+function! s:drawer.add_saved_query_file_in_dir(db, rel_dir) abort
+  try
+    let full_path = printf('%s/%s', a:db.save_path, a:rel_dir)
+    
+    if !isdirectory(full_path)
+      call mkdir(full_path, 'p')
+    endif
+    
+    let file_name = db_ui#utils#input(printf('Enter file name (in %s/): ', fnamemodify(full_path, ':t')), '')
+    if empty(trim(file_name))
+      return db_ui#notifications#error('File name cannot be empty.')
+    endif
+    
+    let full_file_path = printf('%s/%s', full_path, file_name)
+    
+    if filereadable(full_file_path)
+      return db_ui#notifications#error('File already exists.')
+    endif
+    
+    call writefile([], full_file_path)
+    call db_ui#notifications#info('Created file: '.file_name)
+    call self.render({ 'queries': 1 })
+  catch /.*/
+    return db_ui#notifications#error('Failed to create file: '.v:exception)
+  endtry
+endfunction
+
+function! s:drawer.add_saved_query_subdirectory(db, parent_dir) abort
+  try
+    let full_path = printf('%s/%s', a:db.save_path, a:parent_dir)
+    
+    let dir_name = db_ui#utils#input(printf('Enter subdirectory name (in %s/): ', fnamemodify(full_path, ':t')), '')
+    if empty(trim(dir_name))
+      return db_ui#notifications#error('Directory name cannot be empty.')
+    endif
+    
+    let new_dir_path = printf('%s/%s', full_path, dir_name)
+    
+    if isdirectory(new_dir_path)
+      return db_ui#notifications#error('Directory already exists.')
+    endif
+    
+    call mkdir(new_dir_path, 'p')
+    call db_ui#notifications#info('Created directory: '.dir_name)
+    call self.render({ 'queries': 1 })
+  catch /.*/
+    return db_ui#notifications#error('Failed to create directory: '.v:exception)
   endtry
 endfunction
 
