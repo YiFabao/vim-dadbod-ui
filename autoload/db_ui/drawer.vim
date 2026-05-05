@@ -1115,20 +1115,26 @@ function! s:search_files() abort
   try
     while 1
       let char = getcharstr()
-      
-      " Enter or Escape
-      if char == "\<CR>" || char == "\<Esc>"
+
+      if char == "\<CR>"
+        " Enter - confirm search
         break
       endif
-      
-      " Ctrl-C
-      if char == "\<C-c>"
+
+      if char == "\<Esc>"
+        " Escape - cancel search
         let s:search_query = ''
         break
       endif
-      
-      " Backspace / Delete
+
+      if char == "\<C-c>"
+        " Ctrl-C - cancel search
+        let s:search_query = ''
+        break
+      endif
+
       if char == "\<BS>" || char == "\<Del>" || char == "\<C-h>"
+        " Backspace / Delete
         if len(s:search_query) > 0
           let s:search_query = s:search_query[:-2]
         endif
@@ -1146,27 +1152,25 @@ function! s:search_files() abort
       endif
     endwhile
   catch /^Vim:Interrupt$/
+    let s:search_query = ''
   endtry
 
-  echo ''
-
-  if empty(s:search_query)
-    let s:search_query = ''
-    call s:drawer_instance.render({ 'queries': 1 })
-    return
+  " Restore full list and jump to match if any
+  call s:drawer_instance.render({ 'queries': 1 })
+  
+  if !empty(s:search_query)
+    let lines = getline(1, '$')
+    let idx = 0
+    for line in lines
+      if stridx(tolower(line), tolower(s:search_query)) > -1
+        call cursor(idx + 1, 1)
+        break
+      endif
+      let idx += 1
+    endfor
   endif
 
-  let lines = getline(1, '$')
-  let idx = 0
-  for line in lines
-    if stridx(tolower(line), tolower(s:search_query)) > -1
-      call cursor(idx + 1, 1)
-      return
-    endif
-    let idx += 1
-  endfor
-
-  call db_ui#notifications#info('No matches found for: '.s:search_query)
+  let s:search_query = ''
 endfunction
 
 function! s:clear_search() abort
