@@ -1121,18 +1121,22 @@ function! s:search_files() abort
     while 1
       let char = getchar()
       
-      " Handle special keys
-      if char == 13 || char == 27  " Enter or Escape
+      " Check for Enter (13) or Escape (27)
+      if char == 13 || char == 27
         break
-      elseif char == 8 || char == 127  " Backspace
-        if len(s:search_query) > 0
-          let s:search_query = s:search_query[:-2]
-        endif
-      elseif char == "\<C-c>"
+      elseif char == 3
+        " Ctrl-C
         let s:search_query = ''
         break
-      elseif char >= 32 && char <= 126  " Printable characters
+      elseif type(char) == 0 && char >= 32 && char <= 126
+        " Printable ASCII characters
         let s:search_query .= nr2char(char)
+      elseif type(char) == 0 || (type(char) == 1 && char =~ '^\(<BS>\|<Del>\|<C-H>\)')
+        " Any non-printable character or known backspace/delete codes
+        " Treat as backspace - remove last character
+        if len(s:search_query) > 0
+          let s:search_query = s:search_query[0:-2]
+        endif
       endif
       
       " Re-render with updated search query
