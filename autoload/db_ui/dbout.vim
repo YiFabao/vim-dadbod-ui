@@ -224,15 +224,36 @@ let s:progress = {
       \ 'icon_counter': 0,
       \ }
 
-" Track which query buffer owns which dbout buffer
-let s:query_dbout_map = {}
+" Track per-query dbout content
+let s:query_dbout_content = {}
+let s:pending_save = {}
 
 function! db_ui#dbout#register_query_buffer(query_bufnr, dbout_bufnr) abort
-  let s:query_dbout_map[a:query_bufnr] = a:dbout_bufnr
+  " Find the actual dbout buffer and schedule content save
+  let actual_dbout = -1
+  for b in range(1, bufnr('$'))
+    if bufexists(b) && getbufvar(b, '&filetype') ==? 'dbout'
+      let actual_dbout = b
+      break
+    endif
+  endfor
+  
+  if actual_dbout <= 0
+    return
+  endif
+  
+  " Schedule save with delay to ensure dbout is updated
+  let s:pending_save[a:query_bufnr] = actual_dbout
+  call timer_start(100, { tid -> s:do_save_content() })
 endfunction
 
-function! db_ui#dbout#get_dbout_for_query(query_bufnr) abort
-  return get(s:query_dbout_map, a:query_bufnr, -1)
+function! s:do_save_content() abort
+  for [qbuf, dbuf] in items(s:pending_save)
+    if bufexists(str2nr(dbuf))
+      let s:query_dbout_content[str2nr(qbuf)] = getbufline(str2nr(dbuf), 1, '$')
+    endif
+  endfor
+  let s:pending_save = {}
 endfunction
 
 function! db_ui#dbout#switch_to_result(query_bufnr) abort
