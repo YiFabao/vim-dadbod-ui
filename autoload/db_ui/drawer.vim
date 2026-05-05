@@ -722,7 +722,14 @@ endfunction
 
 function! s:drawer.load_saved_queries(db) abort
   if !empty(a:db.save_path)
-    let a:db.saved_queries.list = split(glob(printf('%s/**/*', a:db.save_path)), "\n")
+    " Collect both files and directories
+    let files = split(glob(printf('%s/**/*', a:db.save_path)), "\n")
+    let dirs = split(glob(printf('%s/*', a:db.save_path)), "\n")
+    let dirs = filter(copy(dirs), 'isdirectory(v:val)')
+    
+    " Also collect nested directories
+    let all_entries = files + dirs
+    let a:db.saved_queries.list = sort(all_entries)
   endif
 endfunction
 
@@ -860,25 +867,33 @@ endfunction
 function! s:drawer._render_saved_queries_section(db) abort
   call self.add('Saved queries ('.len(a:db.saved_queries.list).')', 'toggle', 'saved_queries', self.get_toggle_icon('saved_queries', a:db.saved_queries), a:db.key_name, 1, { 'expanded': a:db.saved_queries.expanded })
   if a:db.saved_queries.expanded
-    let save_path = escape(a:db.save_path, '.')
     let sorted_list = sort(a:db.saved_queries.list)
 
-    " Build tree structure
+    " Build tree structure from both files and directories
     let tree = {}
-    for saved_query in sorted_list
-      if !isdirectory(saved_query)
-        let relative_path = substitute(saved_query, a:db.save_path . '/', '', '')
-        let parts = split(relative_path, '/')
-        let current = tree
-        for i in range(len(parts) - 1)
-          let part = parts[i]
-          if !has_key(current, part)
-            let current[part] = {'_is_dir': 1, '_children': {}}
-          endif
-          let current = current[part]['_children']
-        endfor
-        let filename = parts[-1]
-        let current[filename] = {'_is_dir': 0, '_path': saved_query}
+    for entry in sorted_list
+      let relative_path = substitute(entry, a:db.save_path . '/', '', '')
+      let parts = split(relative_path, '/')
+      let current = tree
+      
+      " Build nested structure
+      for i in range(len(parts) - 1)
+        let part = parts[i]
+        if !has_key(current, part)
+          let current[part] = {'_is_dir': 1, '_children': {}}
+        endif
+        let current = current[part]['_children']
+      endfor
+      
+      let filename = parts[-1]
+      if isdirectory(entry)
+        " This is a directory
+        if !has_key(current, filename)
+          let current[filename] = {'_is_dir': 1, '_children': {}}
+        endif
+      else
+        " This is a file
+        let current[filename] = {'_is_dir': 0, '_path': entry}
       endif
     endfor
 
