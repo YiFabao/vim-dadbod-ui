@@ -45,6 +45,8 @@ function! s:drawer.open(...) abort
   silent! exe "nnoremap <silent><buffer> <Plug>(DBUI_SelectLineVsplit) :call <sid>method('toggle_line', 'vertical ".query_win_pos." split')<CR>"
   nnoremap <silent><buffer> <Plug>(DBUI_Redraw) :call <sid>method('redraw')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_AddConnection) :call <sid>method('add_connection')<CR>
+  nnoremap <silent><buffer> <Plug>(DBUI_AddQueryDir) :call <sid>method('add_query_dir')<CR>
+  nnoremap <silent><buffer> <Plug>(DBUI_AddQueryFile) :call <sid>method('add_query_file')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_ToggleDetails) :call <sid>method('toggle_details')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_RenameLine) :call <sid>method('rename_line')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_Quit) :call <sid>method('quit')<CR>
@@ -104,6 +106,22 @@ function! s:method(method_name, ...) abort
   endif
 
   return s:drawer_instance[a:method_name]()
+endfunction
+
+function! s:add_query_dir() abort
+  let item = s:drawer_instance.get_current_item()
+  if item.type ==? 'db'
+    return s:drawer_instance.add_saved_query_directory(s:drawer_instance.dbui.dbs[item.dbui_db_key_name])
+  endif
+  return db_ui#notifications#error('Please navigate to a database connection first.')
+endfunction
+
+function! s:add_query_file() abort
+  let item = s:drawer_instance.get_current_item()
+  if item.type ==? 'db'
+    return s:drawer_instance.add_saved_query_file(s:drawer_instance.dbui.dbs[item.dbui_db_key_name])
+  endif
+  return db_ui#notifications#error('Please navigate to a database connection first.')
 endfunction
 
 function! s:drawer.goto_sibling(direction)
@@ -395,7 +413,7 @@ function! s:drawer.render_help() abort
     call self.add('" <Leader>E - (sql) Edit bind parameters in opened query', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>S - (sql) Execute query in visual or normal mode', 'noaction', 'help', '', '', 0)
     call self.add('" <C-]> - (.dbout) Go to entry from foreign key cell', 'noaction', 'help', '', '', 0)
-    call self.add('" <motion>ic - (.dbout) Operator pending mapping for cell value', 'noaction', 'help', '', '', 0)
+    call self.add('" ic - (.dbout) Operator pending mapping for cell value', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>R - (.dbout) Toggle expanded view', 'noaction', 'help', '', '', 0)
     call self.add('', 'noaction', 'help', '', '', 0)
   endif
@@ -477,6 +495,11 @@ function! s:drawer.toggle_line(edit_action) abort
     return self.get_query().open(item, a:edit_action)
   endif
 
+  " Handle saved query directory toggle
+  if item.action ==? 'toggle_saved_query_dir'
+    return self.toggle_saved_query_dir(item)
+  endif
+
   let db = self.dbui.dbs[item.dbui_db_key_name]
 
   let tree = db
@@ -513,6 +536,11 @@ function! s:drawer.delete_line() abort
       return db_ui#notifications#error('Cannot delete this connection.')
     endif
     return self.delete_connection(db)
+  endif
+
+  " Handle saved query directory or file deletion
+  if item.action ==? 'toggle_saved_query_dir' || (item.action ==? 'open' && item.type ==? 'buffer' && has_key(item, 'saved'))
+    return self.delete_saved_query_item(item)
   endif
 
   if item.action !=? 'open' || item.type !=? 'buffer'
@@ -555,6 +583,24 @@ function! s:drawer.delete_line() abort
   call self.render()
 endfunction
 
+function! s:drawer.toggle_saved_query_dir(item) abort
+  let db = self.dbui.dbs[a:item.dbui_db_key_name]
+  
+  " Initialize dir_expanded tracking if not exists
+  if !has_key(db.saved_queries, 'dir_expanded')
+    let db.saved_queries.dir_expanded = {}
+  endif
+  
+  " Use the full directory path for tracking
+  let dir_path = a:item.dir_full_path
+  let current_expanded = get(db.saved_queries.dir_expanded, dir_path, 0)
+  
+  " Toggle the expanded state
+  let db.saved_queries.dir_expanded[dir_path] = !current_expanded
+  
+  return self.render()
+endfunction
+
 function! s:drawer.toggle_db(db) abort
   if !a:db.expanded
     return a:db
@@ -566,6 +612,101 @@ function! s:drawer.toggle_db(db) abort
 
   if !empty(a:db.conn)
     call self.populate(a:db)
+  endif
+endfunction
+
+function! s:drawer.add_saved_query_directory(db) abort
+  try
+    let dir_name = db_ui#utils#input('Enter directory name: ', '')
+    if empty(trim(dir_name))
+      return db_ui#notifications#error('Directory name cannot be empty.')
+    endif
+    
+    let db = self.dbui.dbs[a:db.key_name]
+    let full_path = printf('%s/%s', db.save_path, dir_name)
+    
+    if isdirectory(full_path)
+      return db_ui#notifications#error('Directory already exists.')
+    endif
+    
+    call mkdir(full_path, 'p')
+    call db_ui#notifications#info('Created directory: '.dir_name)
+    call self.render({ 'queries': 1 })
+  catch /.*/
+    return db_ui#notifications#error('Failed to create directory: '.v:exception)
+  endtry
+endfunction
+
+function! s:drawer.add_saved_query_file(db) abort
+  try
+    let file_name = db_ui#utils#input('Enter file name: ', '')
+    if empty(trim(file_name))
+      return db_ui#notifications#error('File name cannot be empty.')
+    endif
+    
+    let db = self.dbui.dbs[a:db.key_name]
+    let full_path = printf('%s/%s', db.save_path, file_name)
+    
+    if filereadable(full_path)
+      return db_ui#notifications#error('File already exists.')
+    endif
+    
+    call writefile([], full_path)
+    call db_ui#notifications#info('Created file: '.file_name)
+    call self.render({ 'queries': 1 })
+  catch /.*/
+    return db_ui#notifications#error('Failed to create file: '.v:exception)
+  endtry
+endfunction
+
+function! s:drawer.delete_saved_query_item(item) abort
+  let choice = confirm('Are you sure you want to delete this item?', "&Yes\n&No")
+  if choice !=? 1
+    return
+  endif
+  
+  try
+    if a:item.type ==? 'saved_query_dir'
+      " Delete directory and all contents
+      let db = self.dbui.dbs[a:item.dbui_db_key_name]
+      " Build full directory path by traversing the tree
+      let dir_path = self.build_saved_query_dir_path(a:item)
+      
+      if isdirectory(dir_path)
+        " Recursively delete directory
+        call s:delete_recursive(dir_path)
+        call db_ui#notifications#info('Deleted directory: '.a:item.dir_name)
+      endif
+    elseif a:item.type ==? 'buffer' && has_key(a:item, 'saved')
+      " Delete saved query file
+      call delete(a:item.file_path)
+      call db_ui#notifications#info('Deleted file: '.fnamemodify(a:item.file_path, ':t'))
+    else
+      return db_ui#notifications#error('Cannot delete this item.')
+    endif
+    
+    call self.render({ 'queries': 1 })
+  catch /.*/
+    return db_ui#notifications#error('Failed to delete: '.v:exception)
+  endtry
+endfunction
+
+function! s:drawer.build_saved_query_dir_path(item) abort
+  " Use the full directory path stored in the item
+  return a:item.dir_full_path
+endfunction
+
+function! s:delete_recursive(path) abort
+  if isdirectory(a:path)
+    let entries = glob(a:path.'/*', 0, 1) + glob(a:path.'/.*', 0, 1)
+    " Filter out . and ..
+    let entries = filter(entries, 'fnamemodify(v:val, ":t") !=? "." && fnamemodify(v:val, ":t") !=? ".."')
+    for entry in entries
+      call s:delete_recursive(entry)
+    endfor
+    call delete(a:path)
+  else
+    call delete(a:path)
   endif
 endfunction
 
@@ -581,7 +722,7 @@ endfunction
 
 function! s:drawer.load_saved_queries(db) abort
   if !empty(a:db.save_path)
-    let a:db.saved_queries.list = split(glob(printf('%s/*', a:db.save_path)), "\n")
+    let a:db.saved_queries.list = split(glob(printf('%s/**/*', a:db.save_path)), "\n")
   endif
 endfunction
 
@@ -719,10 +860,64 @@ endfunction
 function! s:drawer._render_saved_queries_section(db) abort
   call self.add('Saved queries ('.len(a:db.saved_queries.list).')', 'toggle', 'saved_queries', self.get_toggle_icon('saved_queries', a:db.saved_queries), a:db.key_name, 1, { 'expanded': a:db.saved_queries.expanded })
   if a:db.saved_queries.expanded
-    for saved_query in a:db.saved_queries.list
-      call self.add(fnamemodify(saved_query, ':t'), 'open', 'buffer', g:db_ui_icons.saved_query, a:db.key_name, 2, { 'file_path': saved_query, 'saved': 1 })
+    let save_path = escape(a:db.save_path, '.')
+    let sorted_list = sort(a:db.saved_queries.list)
+
+    " Build tree structure
+    let tree = {}
+    for saved_query in sorted_list
+      if !isdirectory(saved_query)
+        let relative_path = substitute(saved_query, a:db.save_path . '/', '', '')
+        let parts = split(relative_path, '/')
+        let current = tree
+        for i in range(len(parts) - 1)
+          let part = parts[i]
+          if !has_key(current, part)
+            let current[part] = {'_is_dir': 1, '_children': {}}
+          endif
+          let current = current[part]['_children']
+        endfor
+        let filename = parts[-1]
+        let current[filename] = {'_is_dir': 0, '_path': saved_query}
+      endif
     endfor
+
+    " Render tree recursively
+    call self.render_query_tree(tree, a:db, a:db.key_name, 2)
   endif
+endfunction
+
+function! s:drawer.render_query_tree(tree, db, db_key_name, level, ...) abort
+  let parent_path = get(a:, '1', '')
+  let sorted_keys = sort(keys(a:tree))
+  
+  for key in sorted_keys
+    let item = a:tree[key]
+    
+    if has_key(item, '_is_dir') && item._is_dir
+      " This is a directory
+      let current_dir_path = empty(parent_path) ? key : printf('%s/%s', parent_path, key)
+      let has_expanded = has_key(a:db.saved_queries, 'dir_expanded') && has_key(a:db.saved_queries.dir_expanded, current_dir_path)
+      let is_expanded = has_expanded ? a:db.saved_queries.dir_expanded[current_dir_path] : 0
+      let icon = is_expanded ? g:db_ui_icons.expanded.saved_queries : g:db_ui_icons.collapsed.saved_queries
+      
+      call self.add(key, 'toggle_saved_query_dir', 'saved_query_dir', icon, a:db_key_name, a:level, { 
+            \ 'dir_name': key,
+            \ 'dir_full_path': current_dir_path,
+            \ 'expanded': is_expanded,
+            \ })
+      
+      if is_expanded
+        call self.render_query_tree(item._children, a:db, a:db_key_name, a:level + 1, current_dir_path)
+      endif
+    else
+      " This is a file
+      call self.add(key, 'open', 'buffer', g:db_ui_icons.saved_query, a:db_key_name, a:level, { 
+            \ 'file_path': item._path, 
+            \ 'saved': 1 
+            \ })
+    endif
+  endfor
 endfunction
 
 function! s:drawer._render_schemas_section(db) abort

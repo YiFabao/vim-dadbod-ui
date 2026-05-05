@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vim *)",
+      "Bash(chmod *)",
+      "Bash(/users/yifabao/projects/examples/vim-dadbod-ui/test/manual-verify.sh)",
+      "Bash(git add *)"
+    ]
+  },
+  "$version": 3
+}
