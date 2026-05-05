@@ -1184,16 +1184,40 @@ function! s:clear_search() abort
   call s:drawer_instance.render({ 'queries': 1 })
 endfunction
 
+function! Db_ui_open_file_in_query(filepath) abort
+  let drawer = db_ui#drawer#get()
+  if empty(drawer) || empty(drawer.dbui)
+    return
+  endif
+
+  let item = drawer.get_current_item()
+  if empty(item) || empty(item.dbui_db_key_name)
+    return
+  endif
+
+  let db = drawer.dbui.dbs[item.dbui_db_key_name]
+  let query = drawer.get_query()
+  
+  let open_item = {
+        \ 'type': 'buffer',
+        \ 'file_path': a:filepath,
+        \ 'saved': 1,
+        \ 'dbui_db_key_name': db.key_name,
+        \ 'label': fnamemodify(a:filepath, ':t:r')
+        \ }
+  call query.open(open_item, 'edit')
+endfunction
+
 function! s:search_content() abort
   let item = s:drawer_instance.get_current_item()
   if empty(item) || empty(item.dbui_db_key_name)
     return db_ui#notifications#error('Please select a database connection first.')
   endif
-  
+
   let db = s:drawer_instance.dbui.dbs[item.dbui_db_key_name]
   if empty(db.save_path) || !isdirectory(db.save_path)
     return db_ui#notifications#error('No save location configured.')
   endif
-  
-  lua require('db_ui.telescope').search_content()
+
+  lua require('db_ui.telescope').run_search(vim.eval('db.save_path'))
 endfunction
