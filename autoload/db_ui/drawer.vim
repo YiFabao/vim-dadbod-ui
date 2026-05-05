@@ -103,6 +103,14 @@ function! s:drawer.quit() abort
 endfunction
 
 function! s:method(method_name, ...) abort
+  " Handle s: level functions that are not part of drawer instance
+  if a:method_name ==? 'add_query_file'
+    return s:add_query_file()
+  endif
+  if a:method_name ==? 'add_query_dir'
+    return s:add_query_dir()
+  endif
+  
   if a:0 > 0
     return s:drawer_instance[a:method_name](a:1)
   endif
