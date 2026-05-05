@@ -36,6 +36,7 @@ return {
   dependencies = {
     { 'tpope/vim-dadbod', lazy = true },
     { 'kristijanhusak/vim-dadbod-completion', ft = { 'sql', 'mysql', 'plsql' }, lazy = true }, -- Optional
+    { 'nvim-telescope/telescope.nvim', lazy = true }, -- Optional, for file content search
   },
   cmd = {
     'DBUI',
@@ -276,12 +277,69 @@ let g:db_ui_save_location = '~/Dropbox/db_ui_queries'
 ## Mappings
 These are the default mappings for `dbui` drawer:
 
-* o / \<CR> - Open/Toggle Drawer options (`<Plug>(DBUI_SelectLine)`)
-* S - Open in vertical split (`<Plug>(DBUI_SelectLineVsplit)`)
-* d - Delete buffer or saved sql (`<Plug>(DBUI_DeleteLine)`)
-* R - Redraw (`<Plug>(DBUI_Redraw)`)
-* A - Add connection (`<Plug>(DBUI_AddConnection)`)
-* H - Toggle database details (`<Plug>(DBUI_ToggleDetails)`)
+* `o` / `<CR>` - Open/Toggle Drawer options (`<Plug>(DBUI_SelectLine)`)
+* `S` - Open in vertical split (`<Plug>(DBUI_SelectLineVsplit)`)
+* `d` - Delete buffer or saved sql (`<Plug>(DBUI_DeleteLine)`)
+* `a` - Add new query file in current directory
+* `A` - Add new subdirectory in current directory
+* `/` - Search files by name (real-time filtering, supports Chinese)
+* `<C-c>` - Clear search
+* `<leader>se` - Search file content via Telescope (requires Telescope)
+* `r` - Rename buffer or saved query (`<Plug>(DBUI_RenameLine)`)
+* `R` - Redraw (`<Plug>(DBUI_Redraw)`)
+* `A` (on connection) - Add connection (`<Plug>(DBUI_AddConnection)`)
+* `H` - Toggle database details (`<Plug>(DBUI_ToggleDetails)`)
+* `J` / `K` - Go to previous/next sibling
+* `<C-n>` / `<C-p>` - Go to child/parent node
+
+### Saved Queries Directory Tree
+
+Saved queries are organized in a directory tree structure:
+
+```
+▾ 󰆼 mydb ✓
+    󰓰 New query
+  ▾  Saved queries (8)
+    ▸ connection
+    ▸ ops
+       daily.sql
+       weekly.sql
+    ▸ reports
+    ▸ user
+```
+
+**Features:**
+- Expand/collapse directories with `o` or `<CR>`
+- Create directories with `A` (when on a directory)
+- Create files with `a` (creates in current directory context)
+- Delete files/directories with `d` (directories are deleted recursively)
+- Real-time file name search with `/` (supports CJK characters)
+- Search file content with `<leader>se` (requires [telescope.nvim](https://github.com/nvim-telescope/telescope.nvim))
+
+#### File Name Search
+
+Press `/` in the DBUI drawer to search saved query files by name:
+
+- Results update in real-time as you type
+- Directories containing matching files are automatically expanded
+- Supports Chinese and Unicode characters
+- Press `<CR>` to jump to first match, `Esc` to cancel
+
+#### File Content Search
+
+Press `<leader>se` to search saved query file contents using Telescope:
+
+- Opens Telescope `live_grep` scoped to your `g:db_ui_save_location`
+- Results open in the DBUI query buffer (same as selecting from tree)
+- Execute queries directly after opening
+- Requires `telescope.nvim` and `ripgrep`
+
+**LazyVim keymap setup:**
+```lua
+-- In ~/.config/nvim/lua/config/keymaps.lua
+vim.keymap.set("n", "<leader>se", "<Plug>(DBUI_SearchContent)", { desc = "Search saved queries content" })
+```
+
 
 For queries, filetype is automatically set to `sql`. Also, two mappings is added for the `sql` filetype:
 
