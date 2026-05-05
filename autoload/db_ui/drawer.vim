@@ -3,6 +3,7 @@ let s:drawer = {}
 
 function db_ui#drawer#new(dbui)
   let s:drawer_instance = s:drawer.new(a:dbui)
+  let g:db_ui_drawer_instance = s:drawer_instance
   return s:drawer_instance
 endfunction
 function db_ui#drawer#get()
@@ -1194,12 +1195,5 @@ function! s:search_content() abort
     return db_ui#notifications#error('No save location configured.')
   endif
   
-  try
-    execute 'Telescope live_grep search_dirs={"' . db.save_path . '"}'
-  catch /E492/
-    " Not a valid editor command
-    return db_ui#notifications#error('Telescope is not installed. Please install nvim-telescope/telescope.nvim')
-  catch /.*/
-    return db_ui#notifications#error('Failed to open search: '.v:exception)
-  endtry
+  lua require('db_ui.telescope').search_content()
 endfunction
