@@ -49,6 +49,8 @@ function! s:drawer.open(...) abort
   nnoremap <silent><buffer> <Plug>(DBUI_AddQueryFile) :call <sid>method('add_query_file')<CR>
   nnoremap <silent><buffer> a :call <sid>method('add_query_file')<CR>
   nnoremap <silent><buffer> A :call <sid>method('add_query_dir')<CR>
+  nnoremap <silent><buffer> / :call <sid>method('search_files')<CR>
+  nnoremap <silent><buffer> <C-c> :call <sid>method('clear_search')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_ToggleDetails) :call <sid>method('toggle_details')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_RenameLine) :call <sid>method('rename_line')<CR>
   nnoremap <silent><buffer> <Plug>(DBUI_Quit) :call <sid>method('quit')<CR>
@@ -109,6 +111,12 @@ function! s:method(method_name, ...) abort
   endif
   if a:method_name ==? 'add_query_dir'
     return s:add_query_dir()
+  endif
+  if a:method_name ==? 'search_files'
+    return s:search_files()
+  endif
+  if a:method_name ==? 'clear_search'
+    return s:clear_search()
   endif
   
   if a:0 > 0
@@ -440,6 +448,8 @@ function! s:drawer.render_help() abort
     call self.add('" <C-j>/<C-k> - Go to last/first sibling', 'noaction', 'help', '', '', 0)
     call self.add('" K/J - Go to prev/next sibling', 'noaction', 'help', '', '', 0)
     call self.add('" <C-p>/<C-n> - Go to parent/child node', 'noaction', 'help', '', '', 0)
+    call self.add('" / - Search files (expands matching directories)', 'noaction', 'help', '', '', 0)
+    call self.add('" <C-c> - Clear search', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>W - (sql) Save currently opened query', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>E - (sql) Edit bind parameters in opened query', 'noaction', 'help', '', '', 0)
     call self.add('" <Leader>S - (sql) Execute query in visual or normal mode', 'noaction', 'help', '', '', 0)
@@ -1000,6 +1010,7 @@ endfunction
 function! s:drawer.render_query_tree(tree, db, db_key_name, level, ...) abort
   let parent_path = get(a:, '1', '')
   let sorted_keys = sort(keys(a:tree))
+  let search_query = get(s:, 'search_query', '')
   
   for key in sorted_keys
     let item = a:tree[key]
@@ -1007,8 +1018,14 @@ function! s:drawer.render_query_tree(tree, db, db_key_name, level, ...) abort
     if has_key(item, '_is_dir') && item._is_dir
       " This is a directory
       let current_dir_path = empty(parent_path) ? key : printf('%s/%s', parent_path, key)
+      
+      " Check if this directory or any children match the search
+      let dir_matches = !empty(search_query) && stridx(tolower(key), tolower(search_query)) > -1
+      let child_matches = s:tree_has_matches(item._children, search_query)
+      let should_expand = dir_matches || child_matches
+      
       let has_expanded = has_key(a:db.saved_queries, 'dir_expanded') && has_key(a:db.saved_queries.dir_expanded, current_dir_path)
-      let is_expanded = has_expanded ? a:db.saved_queries.dir_expanded[current_dir_path] : 0
+      let is_expanded = should_expand ? 1 : (has_expanded ? a:db.saved_queries.dir_expanded[current_dir_path] : 0)
       let icon = is_expanded ? g:db_ui_icons.expanded.saved_queries : g:db_ui_icons.collapsed.saved_queries
       
       call self.add(key, 'toggle_saved_query_dir', 'saved_query_dir', icon, a:db_key_name, a:level, { 
@@ -1022,12 +1039,38 @@ function! s:drawer.render_query_tree(tree, db, db_key_name, level, ...) abort
       endif
     else
       " This is a file
-      call self.add(key, 'open', 'buffer', g:db_ui_icons.saved_query, a:db_key_name, a:level, { 
-            \ 'file_path': item._path, 
-            \ 'saved': 1 
-            \ })
+      let file_matches = !empty(search_query) && stridx(tolower(key), tolower(search_query)) > -1
+      
+      " In search mode, only show matching files
+      if empty(search_query) || file_matches
+        call self.add(key, 'open', 'buffer', g:db_ui_icons.saved_query, a:db_key_name, a:level, { 
+              \ 'file_path': item._path, 
+              \ 'saved': 1 
+              \ })
+      endif
     endif
   endfor
+endfunction
+
+function! s:tree_has_matches(tree, query) abort
+  if empty(a:query)
+    return 0
+  endif
+  
+  for key in keys(a:tree)
+    let item = a:tree[key]
+    if has_key(item, '_is_dir') && item._is_dir
+      if s:tree_has_matches(item._children, a:query)
+        return 1
+      endif
+    else
+      if stridx(tolower(key), tolower(a:query)) > -1
+        return 1
+      endif
+    endif
+  endfor
+  
+  return 0
 endfunction
 
 function! s:drawer._render_schemas_section(db) abort
@@ -1061,4 +1104,41 @@ endfunction
 function! s:sort_dbout(a1, a2)
   let l:result = str2nr(fnamemodify(a:a1, ':t:r')) - str2nr(fnamemodify(a:a2, ':t:r'))
   return g:db_ui_dbout_list_sort ==? 'desc' ? -l:result : l:result
+endfunction
+
+function! s:search_files() abort
+  try
+    let query = db_ui#utils#input('Search files: ', '')
+  catch /.*/
+    return db_ui#notifications#error(v:exception)
+  endtry
+  
+  if empty(trim(query))
+    return
+  endif
+  
+  return s:do_search(query)
+endfunction
+
+function! s:clear_search() abort
+  let s:search_query = ''
+  call s:drawer_instance.render({ 'queries': 1 })
+endfunction
+
+function! s:do_search(query) abort
+  let s:search_query = a:query
+  call s:drawer_instance.render({ 'queries': 1 })
+  
+  " Find first matching file and move cursor to it
+  let lines = getline(1, '$')
+  let idx = 0
+  for line in lines
+    if stridx(tolower(line), tolower(a:query)) > -1
+      call cursor(idx + 1, 1)
+      return
+    endif
+    let idx += 1
+  endfor
+  
+  call db_ui#notifications#info('No matches found for: '.a:query)
 endfunction
