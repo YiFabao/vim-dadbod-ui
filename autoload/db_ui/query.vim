@@ -182,6 +182,7 @@ function! s:query.setup_buffer(db, opts, buffer_name, was_single_win) abort
       autocmd BufWritePost <buffer> nested call s:method('execute_query')
     endif
     autocmd BufDelete,BufWipeout <buffer> silent! call s:method('remove_buffer', str2nr(expand('<abuf>')))
+    autocmd BufEnter <buffer> call db_ui#dbout#switch_to_result(str2nr(expand('<abuf>')))
   augroup END
 endfunction
 
