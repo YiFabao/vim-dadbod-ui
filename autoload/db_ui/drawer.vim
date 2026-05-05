@@ -1107,38 +1107,71 @@ function! s:sort_dbout(a1, a2)
 endfunction
 
 function! s:search_files() abort
-  try
-    let query = db_ui#utils#input('Search files: ', '')
-  catch /.*/
-    return db_ui#notifications#error(v:exception)
-  endtry
-  
-  if empty(trim(query))
-    return
-  endif
-  
-  return s:do_search(query)
-endfunction
-
-function! s:clear_search() abort
+  " Enter search mode with real-time filtering
   let s:search_query = ''
   call s:drawer_instance.render({ 'queries': 1 })
-endfunction
-
-function! s:do_search(query) abort
-  let s:search_query = a:query
-  call s:drawer_instance.render({ 'queries': 1 })
+  
+  " Move to search input at top
+  call cursor(1, 1)
+  
+  " Show search prompt
+  echo 'Search: '
+  
+  try
+    while 1
+      let char = getchar()
+      
+      " Handle special keys
+      if char == 13 || char == 27  " Enter or Escape
+        break
+      elseif char == 8 || char == 127  " Backspace
+        if len(s:search_query) > 0
+          let s:search_query = s:search_query[:-2]
+        endif
+      elseif char == "\<C-c>"
+        let s:search_query = ''
+        break
+      elseif char >= 32 && char <= 126  " Printable characters
+        let s:search_query .= nr2char(char)
+      endif
+      
+      " Re-render with updated search query
+      call s:drawer_instance.render({ 'queries': 1 })
+      
+      " Show current search
+      if empty(s:search_query)
+        echo 'Search: '
+      else
+        echo 'Search: '.s:search_query
+      endif
+    endwhile
+  catch /^Vim:Interrupt$/
+    " Handle Ctrl-C
+  endtry
+  
+  echo ''  " Clear echo
+  
+  if empty(s:search_query)
+    let s:search_query = ''
+    call s:drawer_instance.render({ 'queries': 1 })
+    return
+  endif
   
   " Find first matching file and move cursor to it
   let lines = getline(1, '$')
   let idx = 0
   for line in lines
-    if stridx(tolower(line), tolower(a:query)) > -1
+    if stridx(tolower(line), tolower(s:search_query)) > -1
       call cursor(idx + 1, 1)
       return
     endif
     let idx += 1
   endfor
   
-  call db_ui#notifications#info('No matches found for: '.a:query)
+  call db_ui#notifications#info('No matches found for: '.s:search_query)
+endfunction
+
+function! s:clear_search() abort
+  let s:search_query = ''
+  call s:drawer_instance.render({ 'queries': 1 })
 endfunction
