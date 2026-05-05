@@ -237,6 +237,14 @@ endfunction
 
 function! db_ui#dbout#switch_to_result(query_bufnr) abort
   let dbout_bufnr = db_ui#dbout#get_dbout_for_query(a:query_bufnr)
+  
+  call db_ui#utils#print_debug({
+        \ 'message': 'switch_to_result called',
+        \ 'query_bufnr': a:query_bufnr,
+        \ 'mapped_dbout_bufnr': dbout_bufnr,
+        \ 'current_bufnr': bufnr()
+        \ })
+  
   if dbout_bufnr <= 0
     return
   endif
@@ -257,6 +265,12 @@ function! db_ui#dbout#switch_to_result(query_bufnr) abort
       exe win.'wincmd w'
       exe 'silent! buffer '.dbout_bufnr
       exe current_win.'wincmd w'
+      
+      call db_ui#utils#print_debug({
+            \ 'message': 'Switched dbout window',
+            \ 'dbout_win': dbout_win,
+            \ 'new_dbout_bufnr': dbout_bufnr
+            \ })
       return
     endif
   endfor

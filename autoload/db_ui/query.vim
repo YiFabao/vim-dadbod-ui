@@ -510,5 +510,11 @@ function s:print_query_time() abort
   if has_key(s:query_info, 'query_bufnr') && s:query_info.query_bufnr > 0
     let dbout_bufnr = bufnr('%')
     call db_ui#dbout#register_query_buffer(s:query_info.query_bufnr, dbout_bufnr)
+    call db_ui#utils#print_debug({
+          \ 'message': 'Registered query->dbout mapping',
+          \ 'query_bufnr': s:query_info.query_bufnr,
+          \ 'dbout_bufnr': dbout_bufnr,
+          \ 'current_bufnr': bufnr()
+          \ })
   endif
 endfunction
