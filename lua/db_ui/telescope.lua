@@ -12,7 +12,7 @@ function M.run_search(save_path)
 
   builtin.live_grep({
     search_dirs = { save_path },
-    attach_mappings = function(prompt_bufnr)
+    attach_mappings = function(prompt_bufnr, map)
       local function select_entry()
         local selection = action_state.get_selected_entry()
         if selection then
@@ -24,8 +24,8 @@ function M.run_search(save_path)
         end
       end
 
-      actions.set_keymap('i', '<CR>', select_entry)
-      actions.set_keymap('n', '<CR>', select_entry)
+      map('i', '<CR>', select_entry)
+      map('n', '<CR>', select_entry)
       return true
     end,
   })
