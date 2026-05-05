@@ -369,8 +369,55 @@ function! s:query.save_query() abort
       call mkdir(db.save_path, 'p')
     endif
 
+    " Get list of directories for selection
+    let directories = s:get_saved_query_directories(db)
+    
+    if empty(directories)
+      " No directories, save directly to save_path
+      try
+        let name = db_ui#utils#input('Enter file name: ', '')
+      catch /.*/
+        return db_ui#notifications#error(v:exception)
+      endtry
+
+      if empty(trim(name))
+        throw 'No valid name provided.'
+      endif
+
+      let full_name = printf('%s/%s', db.save_path, name)
+
+      if filereadable(full_name)
+        throw 'That file already exists. Please choose another name.'
+      endif
+
+      exe 'write '.full_name
+      call self.drawer.render({ 'queries': 1 })
+      call self.open_buffer(db, full_name, 'edit')
+      return
+    endif
+
+    " Show directory selection dialog
+    let dir_options = ['Select directory to save to:']
+    for i in range(len(directories))
+      let dir_label = printf('%d) %s', i + 1, directories[i])
+      call add(dir_options, dir_label)
+    endfor
+    
+    let choice = db_ui#utils#inputlist(dir_options)
+    if choice < 1 || choice > len(directories)
+      return db_ui#notifications#error('Wrong selection.')
+    endif
+    
+    let selected_dir = directories[choice - 1]
+    let full_dir_path = printf('%s/%s', db.save_path, selected_dir)
+    
+    " Ensure directory exists
+    if !isdirectory(full_dir_path)
+      call mkdir(full_dir_path, 'p')
+    endif
+    
     try
-      let name = db_ui#utils#input('Save as: ', '')
+      let name = db_ui#utils#input(printf('Enter file name (in %s/): ', fnamemodify(full_dir_path, ':t')), '')
     catch /.*/
       return db_ui#notifications#error(v:exception)
     endtry
@@ -379,7 +426,7 @@ function! s:query.save_query() abort
       throw 'No valid name provided.'
     endif
 
-    let full_name = printf('%s/%s', db.save_path, name)
+    let full_name = printf('%s/%s', full_dir_path, name)
 
     if filereadable(full_name)
       throw 'That file already exists. Please choose another name.'
@@ -391,6 +438,33 @@ function! s:query.save_query() abort
   catch /.*/
     return db_ui#notifications#error(v:exception)
   endtry
+endfunction
+
+function! s:get_saved_query_directories(db) abort
+  " Collect all directories under save_path
+  let directories = []
+  if !empty(a:db.save_path) && isdirectory(a:db.save_path)
+    let all_entries = split(glob(printf('%s/*', a:db.save_path)), "\n")
+    for entry in all_entries
+      if isdirectory(entry)
+        let rel_path = substitute(entry, a:db.save_path . '/', '', '')
+        call add(directories, rel_path)
+      endif
+    endfor
+    
+    " Also get nested directories
+    let nested_entries = split(glob(printf('%s/**/*', a:db.save_path)), "\n")
+    for entry in nested_entries
+      if isdirectory(entry)
+        let rel_path = substitute(entry, a:db.save_path . '/', '', '')
+        if index(directories, rel_path) == -1
+          call add(directories, rel_path)
+        endif
+      endif
+    endfor
+  endif
+  
+  return sort(directories)
 endfunction
 
 function! s:query.get_last_query_info() abort

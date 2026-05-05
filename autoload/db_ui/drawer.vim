@@ -639,13 +639,27 @@ endfunction
 
 function! s:drawer.add_saved_query_file(db) abort
   try
-    let file_name = db_ui#utils#input('Enter file name: ', '')
+    let db = self.dbui.dbs[a:db.key_name]
+    
+    " Get current directory context if in a directory
+    let target_dir = db.save_path
+    let current_item = self.get_current_item()
+    if !empty(current_item)
+      if current_item.type ==? 'saved_query_dir'
+        " Currently on a directory, use it as target
+        let target_dir = printf('%s/%s', db.save_path, current_item.dir_full_path)
+      elseif current_item.type ==? 'buffer' && has_key(current_item, 'saved')
+        " Currently on a file, use its parent directory
+        let target_dir = fnamemodify(current_item.file_path, ':h')
+      endif
+    endif
+    
+    let file_name = db_ui#utils#input(printf('Enter file name (in %s/): ', fnamemodify(target_dir, ':t')), '')
     if empty(trim(file_name))
       return db_ui#notifications#error('File name cannot be empty.')
     endif
     
-    let db = self.dbui.dbs[a:db.key_name]
-    let full_path = printf('%s/%s', db.save_path, file_name)
+    let full_path = printf('%s/%s', target_dir, file_name)
     
     if filereadable(full_path)
       return db_ui#notifications#error('File already exists.')
