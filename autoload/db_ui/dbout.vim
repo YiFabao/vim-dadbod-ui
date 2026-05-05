@@ -224,6 +224,29 @@ let s:progress = {
       \ 'icon_counter': 0,
       \ }
 
+" Track which query buffer owns which dbout buffer
+let s:query_dbout_map = {}
+
+function! db_ui#dbout#register_query_buffer(query_bufnr, dbout_bufnr) abort
+  let s:query_dbout_map[a:query_bufnr] = a:dbout_bufnr
+endfunction
+
+function! db_ui#dbout#get_dbout_for_query(query_bufnr) abort
+  return get(s:query_dbout_map, a:query_bufnr, -1)
+endfunction
+
+function! db_ui#dbout#switch_to_dbout(query_bufnr) abort
+  let dbout_bufnr = db_ui#dbout#get_dbout_for_query(a:query_bufnr)
+  if dbout_bufnr > 0
+    let win = bufwinnr(dbout_bufnr)
+    if win > 0
+      exe win.'wincmd w'
+      return 1
+    endif
+  endif
+  return 0
+endfunction
+
 function! s:progress_tick(progress, timer) abort
   let a:progress.counter += 100
   if a:progress.icon_counter > 3

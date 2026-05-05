@@ -495,6 +495,7 @@ endfunction
 
 function s:start_query() abort
   let s:query_info.last_query_start_time = reltime()
+  let s:query_info.query_bufnr = bufnr()
 endfunction
 
 function s:print_query_time() abort
@@ -503,4 +504,10 @@ function s:print_query_time() abort
   endif
   let s:query_info.last_query_time = split(reltimestr(reltime(s:query_info.last_query_start_time)))[0]
   call db_ui#notifications#info('Done after '.s:query_info.last_query_time.' sec.')
+
+  " Register the relationship between query buffer and dbout buffer
+  if has_key(s:query_info, 'query_bufnr') && s:query_info.query_bufnr > 0
+    let dbout_bufnr = bufnr('%')
+    call db_ui#dbout#register_query_buffer(s:query_info.query_bufnr, dbout_bufnr)
+  endif
 endfunction
