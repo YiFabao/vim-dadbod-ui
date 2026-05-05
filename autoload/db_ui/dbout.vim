@@ -275,6 +275,8 @@ function! db_ui#dbout#switch_to_result(query_bufnr) abort
         call deletebufline(wbuf, len(saved_content) + 1, total)
       endif
       call setbufvar(wbuf, '&modifiable', old_modifiable)
+      " Clear modified flag to prevent save prompt
+      call setbufvar(wbuf, '&modified', 0)
       return
     endif
   endfor
