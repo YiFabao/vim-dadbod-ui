@@ -235,16 +235,31 @@ function! db_ui#dbout#get_dbout_for_query(query_bufnr) abort
   return get(s:query_dbout_map, a:query_bufnr, -1)
 endfunction
 
-function! db_ui#dbout#switch_to_dbout(query_bufnr) abort
+function! db_ui#dbout#switch_to_result(query_bufnr) abort
   let dbout_bufnr = db_ui#dbout#get_dbout_for_query(a:query_bufnr)
-  if dbout_bufnr > 0
-    let win = bufwinnr(dbout_bufnr)
-    if win > 0
-      exe win.'wincmd w'
-      return 1
-    endif
+  if dbout_bufnr <= 0
+    return
   endif
-  return 0
+
+  " Find the dbout window
+  let dbout_win = bufwinnr(dbout_bufnr)
+  if dbout_win > 0
+    " dbout window already showing this buffer, nothing to do
+    return
+  endif
+
+  " Look for any dbout window and switch it
+  for win in range(1, winnr('$'))
+    let wbuf = winbufnr(win)
+    if getbufvar(wbuf, '&filetype') ==? 'dbout'
+      " This is a dbout window, switch it to our dbout
+      let current_win = winnr()
+      exe win.'wincmd w'
+      exe 'silent! buffer '.dbout_bufnr
+      exe current_win.'wincmd w'
+      return
+    endif
+  endfor
 endfunction
 
 function! s:progress_tick(progress, timer) abort
