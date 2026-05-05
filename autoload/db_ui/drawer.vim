@@ -1114,27 +1114,27 @@ function! s:search_files() abort
 
   try
     while 1
-      let char = getchar()
+      let char = getcharstr()
       
       " Enter or Escape
-      if char == 13 || char == 27
+      if char == "\<CR>" || char == "\<Esc>"
         break
       endif
       
       " Ctrl-C
-      if char == 3
+      if char == "\<C-c>"
         let s:search_query = ''
         break
       endif
       
-      " Printable characters (space to tilde)
-      if type(char) == 0 && char >= 32 && char <= 126
-        let s:search_query .= nr2char(char)
-      else
-        " Everything else is backspace
+      " Backspace / Delete
+      if char == "\<BS>" || char == "\<Del>" || char == "\<C-h>"
         if len(s:search_query) > 0
-          let s:search_query = s:search_query[0:-2]
+          let s:search_query = s:search_query[:-2]
         endif
+      elseif len(char) > 0
+        " Any other character (including multi-byte / CJK)
+        let s:search_query .= char
       endif
 
       call s:drawer_instance.render({ 'queries': 1 })
