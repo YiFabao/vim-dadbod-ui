@@ -394,7 +394,7 @@ function! s:drawer.render(...) abort
   call self.render_help()
 
   for db in self.dbui.dbs_list
-    if get(opts, 'queries', 0)
+    if get(opts, 'queries', 0) || !empty(get(s:, 'search_query', ''))
       call self.load_saved_queries(self.dbui.dbs[db.key_name])
     endif
     call self.add_db(self.dbui.dbs[db.key_name])
@@ -507,12 +507,17 @@ function! s:drawer.render_tables(tables, db, path, level, schema) abort
   if !a:tables.expanded
     return
   endif
+  let search_query = get(s:, 'search_query', '')
   if type(g:Db_ui_table_name_sorter) ==? type(function('tr'))
     let tables_list = call(g:Db_ui_table_name_sorter, [a:tables.list])
   else
     let tables_list = a:tables.list
   endif
   for table in tables_list
+    " In search mode, only show matching tables
+    if !empty(search_query) && stridx(tolower(table), tolower(search_query)) == -1
+      continue
+    endif
     call self.add(table, 'toggle', a:path.'->'.table, self.get_toggle_icon('table', a:tables.items[table]), a:db.key_name, a:level, { 'expanded': a:tables.items[table].expanded })
     if a:tables.items[table].expanded
       for [helper_name, helper] in items(a:db.table_helpers)
@@ -1080,20 +1085,56 @@ function! s:tree_has_matches(tree, query) abort
 endfunction
 
 function! s:drawer._render_schemas_section(db) abort
+  let search_query = get(s:, 'search_query', '')
+
+  " Helper: check if a schema has matching tables
+  function! s:schema_has_matches(schema_item, query) abort
+    for table in a:schema_item.tables.list
+      if stridx(tolower(table), tolower(a:query)) > -1
+        return 1
+      endif
+    endfor
+    return 0
+  endfunction
+
   if a:db.schema_support
-    call self.add('Schemas ('.len(a:db.schemas.items).')', 'toggle', 'schemas', self.get_toggle_icon('schemas', a:db.schemas), a:db.key_name, 1, { 'expanded': a:db.schemas.expanded })
-    if a:db.schemas.expanded
+    let schema_expanded = a:db.schemas.expanded
+    " In search mode, auto-expand schemas that have matching tables
+    if !empty(search_query)
+      for schema in a:db.schemas.list
+        if s:schema_has_matches(a:db.schemas.items[schema], search_query)
+          let schema_expanded = 1
+          break
+        endif
+      endfor
+    endif
+
+    call self.add('Schemas ('.len(a:db.schemas.items).')', 'toggle', 'schemas', self.get_toggle_icon('schemas', a:db.schemas), a:db.key_name, 1, { 'expanded': schema_expanded })
+    if schema_expanded
       for schema in a:db.schemas.list
         let schema_item = a:db.schemas.items[schema]
         let tables = schema_item.tables
-        call self.add(schema.' ('.len(tables.items).')', 'toggle', 'schemas->items->'.schema, self.get_toggle_icon('schema', schema_item), a:db.key_name, 2, { 'expanded': schema_item.expanded })
-        if schema_item.expanded
+        let schema_has_matches = !empty(search_query) && s:schema_has_matches(schema_item, search_query)
+        let tables_expanded = schema_item.expanded || (!empty(search_query) && schema_has_matches)
+        call self.add(schema.' ('.len(tables.items).')', 'toggle', 'schemas->items->'.schema, self.get_toggle_icon('schema', schema_item), a:db.key_name, 2, { 'expanded': tables_expanded })
+        if tables_expanded
           call self.render_tables(tables, a:db,'schemas->items->'.schema.'->tables->items', 3, schema)
         endif
       endfor
     endif
   else
-    call self.add('Tables ('.len(a:db.tables.items).')', 'toggle', 'tables', self.get_toggle_icon('tables', a:db.tables), a:db.key_name, 1, { 'expanded': a:db.tables.expanded })
+    let tables_expanded = a:db.tables.expanded
+    " In search mode, auto-expand tables
+    if !empty(search_query)
+      for table in a:db.tables.list
+        if stridx(tolower(table), tolower(search_query)) > -1
+          let tables_expanded = 1
+          break
+        endif
+      endfor
+    endif
+
+    call self.add('Tables ('.len(a:db.tables.items).')', 'toggle', 'tables', self.get_toggle_icon('tables', a:db.tables), a:db.key_name, 1, { 'expanded': tables_expanded })
     call self.render_tables(a:db.tables, a:db, 'tables->items', 2, '')
   endif
 endfunction
@@ -1140,9 +1181,12 @@ function! s:search_files() abort
       endif
 
       if char == "\<BS>" || char == "\<Del>" || char == "\<C-h>"
-        " Backspace / Delete
+        " Backspace / Delete - remove last character (not byte)
         if len(s:search_query) > 0
-          let s:search_query = s:search_query[:-2]
+          let char_count = strchars(s:search_query)
+          if char_count > 0
+            let s:search_query = strcharpart(s:search_query, 0, char_count - 1)
+          endif
         endif
       elseif len(char) > 0
         " Any other character (including multi-byte / CJK)
