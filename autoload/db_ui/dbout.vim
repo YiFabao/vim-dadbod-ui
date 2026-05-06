@@ -264,6 +264,14 @@ function! db_ui#dbout#mark_query_executing(query_bufnr, is_executing) abort
   endif
 endfunction
 
+function! db_ui#dbout#get_cache() abort
+  return s:query_dbout_content
+endfunction
+
+function! db_ui#dbout#load_cache(cache) abort
+  let s:query_dbout_content = a:cache
+endfunction
+
 function! s:do_save_content() abort
   for [qbuf, dbuf] in items(s:pending_save)
     if bufexists(str2nr(dbuf))

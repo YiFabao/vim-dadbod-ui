@@ -16,3 +16,11 @@ call db_ui#utils#set_mapping('<C-p>', '<Plug>(DBUI_GotoParentNode)')
 call db_ui#utils#set_mapping('<C-n>', '<Plug>(DBUI_GotoChildNode)')
 call db_ui#utils#set_mapping('K', '<Plug>(DBUI_GotoPrevSibling)')
 call db_ui#utils#set_mapping('J', '<Plug>(DBUI_GotoNextSibling)')
+
+" View save/restore
+if !hasmapto('<Plug>(DBUI_SaveView)', 'n')
+  nmap <silent><buffer> <C-v> <Plug>(DBUI_SaveView)
+endif
+if !hasmapto('<Plug>(DBUI_RestoreView)', 'n')
+  nmap <silent><buffer> <C-r> <Plug>(DBUI_RestoreView)
+endif
