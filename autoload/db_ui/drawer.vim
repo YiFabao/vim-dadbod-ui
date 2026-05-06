@@ -1205,7 +1205,7 @@ function! s:search_files() abort
     let s:search_query = ''
   endtry
 
-  " Jump to first match in the filtered view, then clear search
+  " On Enter, jump to first match and keep the filtered view
   if !empty(s:search_query)
     let lines = getline(1, '$')
     let idx = 0
@@ -1218,9 +1218,8 @@ function! s:search_files() abort
     endfor
   endif
 
-  let s:search_query = ''
-  " Restore full list after jumping to match
-  call s:drawer_instance.render({ 'queries': 1 })
+  " Don't restore full list - keep filtered view so user can select the item
+  " User can press <C-c> to clear search and restore full list
 endfunction
 
 function! s:clear_search() abort
