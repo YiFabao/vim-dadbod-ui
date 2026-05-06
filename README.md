@@ -289,6 +289,8 @@ These are the default mappings for `dbui` drawer:
 * `R` - Redraw (`<Plug>(DBUI_Redraw)`)
 * `A` (on connection) - Add connection (`<Plug>(DBUI_AddConnection)`)
 * `H` - Toggle database details (`<Plug>(DBUI_ToggleDetails)`)
+* `<C-v>` - Save current view state (`<Plug>(DBUI_SaveView)`)
+* `<C-r>` - Restore last saved view state (`<Plug>(DBUI_RestoreView)`)
 * `J` / `K` - Go to previous/next sibling
 * `<C-n>` / `<C-p>` - Go to child/parent node
 
@@ -352,6 +354,28 @@ Each SQL editor buffer maintains its own query result:
 - Each query's output is saved independently
 - Re-executing a query always shows fresh results (cached results are cleared before each execution)
 - Works seamlessly with `bufferline` and other buffer switching methods
+
+### View Save and Restore
+
+Save and restore your entire workspace state with a single command:
+
+- **`:DBUISaveView`** (or `<C-v>` in drawer) — saves the current view state
+- **`:DBUIRestoreView`** (or `<C-r>` in drawer) — restores the last saved view
+
+The saved view includes:
+- Which databases, schemas, and tables are expanded in the drawer
+- Which saved query directories are expanded
+- All open query buffer files and their bind parameters
+- Each query's cached result content (so results persist across sessions)
+- Which query buffer was last active
+
+View state is saved to `g:db_ui_save_location/.view_state.json` (default: `~/.local/share/db_ui/.view_state.json`).
+
+**Typical workflow:**
+1. Open multiple query buffers, expand tables, run queries
+2. Press `<C-v>` to save the view
+3. Close Vim
+4. Reopen Vim, run `:DBUI`, press `<C-r>` to restore everything
 
 For queries, filetype is automatically set to `sql`. Also, two mappings is added for the `sql` filetype:
 
