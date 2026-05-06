@@ -346,7 +346,7 @@ Each SQL editor buffer maintains its own query result:
 
 - When you switch between query buffers, the result window automatically updates to show the corresponding results
 - Each query's output is saved independently
-- No more overwriting results when running multiple queries
+- Re-executing a query always shows fresh results (cached results are cleared before each execution)
 - Works seamlessly with `bufferline` and other buffer switching methods
 
 For queries, filetype is automatically set to `sql`. Also, two mappings is added for the `sql` filetype:
