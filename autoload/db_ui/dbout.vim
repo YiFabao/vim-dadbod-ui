@@ -237,14 +237,20 @@ function! db_ui#dbout#register_query_buffer(query_bufnr, dbout_bufnr) abort
       break
     endif
   endfor
-  
+
   if actual_dbout <= 0
     return
   endif
-  
+
   " Schedule save with delay to ensure dbout is updated
   let s:pending_save[a:query_bufnr] = actual_dbout
   call timer_start(100, { tid -> s:do_save_content() })
+endfunction
+
+function! db_ui#dbout#clear_query_cache(query_bufnr) abort
+  if has_key(s:query_dbout_content, a:query_bufnr)
+    unlet s:query_dbout_content[a:query_bufnr]
+  endif
 endfunction
 
 function! s:do_save_content() abort

@@ -497,6 +497,9 @@ endfunction
 function s:start_query() abort
   let s:query_info.last_query_start_time = reltime()
   let s:query_info.query_bufnr = bufnr()
+
+  " Clear cached result for this query buffer so old results don't overwrite new ones
+  call db_ui#dbout#clear_query_buffer(s:query_info.query_bufnr)
 endfunction
 
 function s:print_query_time() abort

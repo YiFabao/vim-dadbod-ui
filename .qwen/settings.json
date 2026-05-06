@@ -5,7 +5,8 @@
       "Bash(chmod *)",
       "Bash(/users/yifabao/projects/examples/vim-dadbod-ui/test/manual-verify.sh)",
       "Bash(git add *)",
-      "Bash(rm *)"
+      "Bash(rm *)",
+      "Bash(git commit *)"
     ]
   },
   "$version": 3
