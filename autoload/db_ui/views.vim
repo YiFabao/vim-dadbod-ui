@@ -24,7 +24,17 @@ function! db_ui#views#save() abort
 
   " --- Drawer state ---
   let state.drawer_open = drawer.is_opened()
-  let state.drawer_cursor_line = line('.')
+  let state.drawer_cursor_line = -1
+  if state.drawer_open
+    let drawer_winnr = drawer.get_winnr()
+    if drawer_winnr > 0
+      " Save cursor position in drawer window
+      let current_win = winnr()
+      execute drawer_winnr . 'wincmd w'
+      let state.drawer_cursor_line = line('.')
+      execute current_win . 'wincmd w'
+    endif
+  endif
   let state.show_details = drawer.show_details
   let state.show_dbout_list = drawer.show_dbout_list
 
@@ -232,9 +242,15 @@ function! db_ui#views#restore() abort
     " Re-render drawer
     call drawer.render({ 'queries': 1 })
 
-    " Restore cursor position
-    if has_key(state, 'drawer_cursor_line')
-      call cursor(state.drawer_cursor_line, 1)
+    " Restore cursor position in drawer
+    if has_key(state, 'drawer_cursor_line') && state.drawer_cursor_line > 0
+      let drawer_winnr = drawer.get_winnr()
+      if drawer_winnr > 0
+        let current_win = winnr()
+        execute drawer_winnr . 'wincmd w'
+        call cursor(state.drawer_cursor_line, 1)
+        execute current_win . 'wincmd w'
+      endif
     endif
 
     " Re-open drawer if it was open
