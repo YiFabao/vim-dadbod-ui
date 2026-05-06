@@ -6,7 +6,8 @@
       "Bash(/users/yifabao/projects/examples/vim-dadbod-ui/test/manual-verify.sh)",
       "Bash(git add *)",
       "Bash(rm *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(find *)"
     ]
   },
   "$version": 3

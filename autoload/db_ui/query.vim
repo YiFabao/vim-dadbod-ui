@@ -498,8 +498,18 @@ function s:start_query() abort
   let s:query_info.last_query_start_time = reltime()
   let s:query_info.query_bufnr = bufnr()
 
+  " Mark this buffer as executing to prevent switch_to_result from overwriting
+  call db_ui#dbout#mark_query_executing(s:query_info.query_bufnr, 1)
+
   " Clear cached result for this query buffer so old results don't overwrite new ones
-  call db_ui#dbout#clear_query_buffer(s:query_info.query_bufnr)
+  call db_ui#dbout#clear_query_cache(s:query_info.query_bufnr)
+endfunction
+
+function s:finish_query() abort
+  " Mark query as no longer executing
+  if has_key(s:query_info, 'query_bufnr')
+    call db_ui#dbout#mark_query_executing(s:query_info.query_bufnr, 0)
+  endif
 endfunction
 
 function s:print_query_time() abort
@@ -523,4 +533,7 @@ function s:print_query_time() abort
       call db_ui#dbout#register_query_buffer(s:query_info.query_bufnr, dbout_bufnr)
     endif
   endif
+
+  " Mark query as finished executing
+  call s:finish_query()
 endfunction

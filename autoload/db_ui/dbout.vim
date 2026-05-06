@@ -227,6 +227,7 @@ let s:progress = {
 " Track per-query dbout content
 let s:query_dbout_content = {}
 let s:pending_save = {}
+let s:query_executing = {}
 
 function! db_ui#dbout#register_query_buffer(query_bufnr, dbout_bufnr) abort
   " Find the actual dbout buffer and schedule content save
@@ -253,6 +254,16 @@ function! db_ui#dbout#clear_query_cache(query_bufnr) abort
   endif
 endfunction
 
+function! db_ui#dbout#mark_query_executing(query_bufnr, is_executing) abort
+  if a:is_executing
+    let s:query_executing[a:query_bufnr] = 1
+  else
+    if has_key(s:query_executing, a:query_bufnr)
+      unlet s:query_executing[a:query_bufnr]
+    endif
+  endif
+endfunction
+
 function! s:do_save_content() abort
   for [qbuf, dbuf] in items(s:pending_save)
     if bufexists(str2nr(dbuf))
@@ -268,6 +279,11 @@ function! db_ui#dbout#switch_to_result(query_bufnr) abort
   endif
 
   let saved_content = s:query_dbout_content[a:query_bufnr]
+
+  " Don't restore if a query is currently executing
+  if has_key(s:query_executing, a:query_bufnr)
+    return
+  endif
 
   " Find dbout window and restore content
   for win in range(1, winnr('$'))
