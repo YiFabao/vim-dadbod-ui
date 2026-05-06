@@ -1,6 +1,63 @@
 " Save and restore view state
 let s:view_file = ''
 
+" Helper: recursively convert winlayout tree to use buffer names instead of winids
+function! s:convert_layout(layout, winid_to_bufname) abort
+  if a:layout[0] ==# 'leaf'
+    let winid = a:layout[1]
+    let bufname = get(a:winid_to_bufname, winid, '')
+    return ['leaf', bufname]
+  elseif a:layout[0] ==# 'row' || a:layout[0] ==# 'col'
+    let new_children = []
+    for child in a:layout[1]
+      call add(new_children, s:convert_layout(child, a:winid_to_bufname))
+    endfor
+    return [a:layout[0], new_children]
+  endif
+  return a:layout
+endfunction
+
+" Helper: recursively restore window layout from saved tree
+" layout is ['row'|'col', [...]] or ['leaf', bufname]
+function! s:restore_window_layout(layout, file_to_qbuf, file_to_buf, active_ref) abort
+  if a:layout[0] ==# 'leaf'
+    let bufname = a:layout[1]
+    if !empty(bufname) && has_key(a:file_to_qbuf, bufname)
+      let qbuf = a:file_to_qbuf[bufname]
+      " Load buffer in current window
+      if bufname('%') != bufname
+        execute 'edit ' . fnameescape(bufname)
+      endif
+      " Restore bind params
+      if has_key(qbuf, 'bind_params') && !empty(qbuf.bind_params)
+        let b:dbui_bind_params = qbuf.bind_params
+      endif
+      let a:file_to_buf[bufname] = bufnr('%')
+      if get(qbuf, 'is_active', 0)
+        let a:active_ref = bufnr('%')
+      endif
+    endif
+  elseif a:layout[0] ==# 'row' || a:layout[0] ==# 'col'
+    let children = a:layout[1]
+    if len(children) == 0
+      return
+    endif
+
+    " Open first child in current window
+    call s:restore_window_layout(children[0], a:file_to_qbuf, a:file_to_buf, a:active_ref)
+
+    " Create splits for remaining children
+    for i in range(1, len(children) - 1)
+      if a:layout[0] ==# 'row'
+        execute 'botright vsplit'
+      else
+        execute 'botright split'
+      endif
+      call s:restore_window_layout(children[i], a:file_to_qbuf, a:file_to_buf, a:active_ref)
+    endfor
+  endif
+endfunction
+
 function! db_ui#views#get_save_path() abort
   if empty(s:view_file)
     let base = get(g:, 'db_ui_save_location', expand('~/.local/share/db_ui'))
@@ -88,6 +145,8 @@ function! db_ui#views#save() abort
   let state.query_buffers = []
   let active_bufnr = bufnr()
   let cache = db_ui#dbout#get_cache()
+
+  " Collect buffer info with window positions
   for b in range(1, bufnr('$'))
     if bufexists(b) && !empty(getbufvar(b, 'dbui_db_key_name', ''))
       let qbuf = {
@@ -100,6 +159,16 @@ function! db_ui#views#save() abort
       call add(state.query_buffers, qbuf)
     endif
   endfor
+
+  " Save window layout with buffer names (not winids)
+  let raw_layout = winlayout()
+  let winid_to_bufname = {}
+  for w in range(1, winnr('$'))
+    let winid = win_getid(w)
+    let bname = winbufname(winid)
+    let winid_to_bufname[winid] = bname
+  endfor
+  let state.win_layout = s:convert_layout(raw_layout, winid_to_bufname)
 
   " --- Dbout content cache ---
   " Save content mapping by query file path instead of bufnr
@@ -136,24 +205,31 @@ function! db_ui#views#restore() abort
 
   let state = json_decode(lines[0])
 
-  " --- Open query buffers first ---
-  let restored_active = -1
-  let restored_count = 0
-  for qbuf in state.query_buffers
-    if !empty(qbuf.file) && filereadable(qbuf.file)
-      let edit_action = restored_count == 0 ? 'edit' : 'split'
-      " Open the buffer via query interface
-      let drawer = db_ui#get_drawer()
-      if !empty(drawer)
-        let query = drawer.get_query()
-        let open_item = {
-              \ 'type': 'buffer',
-              \ 'file_path': qbuf.file,
-              \ 'saved': 1,
-              \ 'dbui_db_key_name': qbuf.dbui_db_key_name,
-              \ 'label': fnamemodify(qbuf.file, ':t:r')
-              \ }
-        call query.open(open_item, edit_action)
+  " --- Rebuild window layout from saved state ---
+  let ctx = { 'active_bufnr': -1, 'file_to_buf': {} }
+
+  if has_key(state, 'win_layout') && has_key(state, 'query_buffers')
+    let qbuf_list = state.query_buffers
+    let file_to_qbuf = {}
+    for qbuf in qbuf_list
+      if !empty(qbuf.file)
+        let file_to_qbuf[qbuf.file] = qbuf
+      endif
+    endfor
+
+    " Recursively restore windows from layout tree
+    call s:restore_window_layout(state.win_layout, file_to_qbuf, ctx.file_to_buf, ctx)
+  else
+    " Fallback: open buffers sequentially
+    let restored_count = 0
+    for qbuf in state.query_buffers
+      if !empty(qbuf.file) && filereadable(qbuf.file)
+        if restored_count == 0
+          execute 'edit ' . fnameescape(qbuf.file)
+        else
+          execute 'botright vsplit ' . fnameescape(qbuf.file)
+        endif
+        let ctx.file_to_buf[qbuf.file] = bufnr('%')
 
         " Restore bind params
         if has_key(qbuf, 'bind_params') && !empty(qbuf.bind_params)
@@ -161,29 +237,27 @@ function! db_ui#views#restore() abort
         endif
 
         if get(qbuf, 'is_active', 0)
-          let restored_active = bufnr(qbuf.file)
+          let ctx.active_bufnr = bufnr('%')
         endif
         let restored_count += 1
       endif
-    endif
-  endfor
+    endfor
+  endif
 
   " Activate the last active buffer
-  if restored_active > 0
-    exe 'buffer ' . restored_active
+  if ctx.active_bufnr > 0
+    execute 'buffer ' . ctx.active_bufnr
   endif
 
   " --- Restore dbout cache to current query buffers ---
   if has_key(state, 'dbout_cache')
     let cache = db_ui#dbout#get_cache()
-    for b in range(1, bufnr('$'))
-      if bufexists(b) && !empty(getbufvar(b, 'dbui_db_key_name', ''))
-        let f = bufname(b)
-        if has_key(state.dbout_cache, f) && !empty(state.dbout_cache[f])
-          let cache[b] = state.dbout_cache[f]
-          " Trigger switch_to_result to display the content in dbout window
-          call db_ui#dbout#switch_to_result(b)
-        endif
+    for [f, content] in items(state.dbout_cache)
+      if !empty(f) && has_key(ctx.file_to_buf, f) && !empty(content)
+        let b = ctx.file_to_buf[f]
+        let cache[b] = content
+        " Trigger switch_to_result to display the content in dbout window
+        call db_ui#dbout#switch_to_result(b)
       endif
     endfor
   endif
