@@ -24,7 +24,7 @@ function! db_ui#views#save() abort
 
   " --- Drawer state ---
   let state.drawer_open = drawer.is_opened()
-  let state.drawer_cursor = drawer.cursor_line
+  let state.drawer_cursor_line = line('.')
   let state.show_details = drawer.show_details
   let state.show_dbout_list = drawer.show_dbout_list
 
@@ -233,8 +233,8 @@ function! db_ui#views#restore() abort
     call drawer.render({ 'queries': 1 })
 
     " Restore cursor position
-    if has_key(state, 'drawer_cursor')
-      let drawer.cursor_line = state.drawer_cursor
+    if has_key(state, 'drawer_cursor_line')
+      call cursor(state.drawer_cursor_line, 1)
     endif
 
     " Re-open drawer if it was open
