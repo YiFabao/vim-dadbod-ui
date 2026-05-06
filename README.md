@@ -318,12 +318,16 @@ Saved queries are organized in a directory tree structure:
 
 #### File Name Search
 
-Press `/` in the DBUI drawer to search saved query files by name:
+Press `/` in the DBUI drawer to search by name across saved queries, tables, and schemas:
 
 - Results update in real-time as you type
+- Searches both saved query file names and table/schema names
 - Directories containing matching files are automatically expanded
-- Supports Chinese and Unicode characters
-- Press `<CR>` to jump to first match, `Esc` to cancel
+- Tables/schemas with matching names are auto-expanded
+- Fully supports Chinese and CJK characters (one backspace deletes one character)
+- Press `<CR>` to jump to the first match — the filtered view stays active so you can navigate with `J`/`K`
+- Press `<C-c>` to clear the search and restore the full list
+- Press `Esc` to cancel search
 
 #### File Content Search
 
