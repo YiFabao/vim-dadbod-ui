@@ -178,7 +178,7 @@ function! db_ui#views#restore() abort
   endif
 
   " --- Restore drawer state ---
-  let drawer = g:db_ui_instance.drawer
+  let drawer = db_ui#get_drawer()
   if !empty(drawer) && !empty(drawer.dbui)
     " Restore expansion states
     if has_key(state, 'dbs')
@@ -255,7 +255,7 @@ function! db_ui#views#restore() abort
 
     " Re-open drawer if it was open
     if get(state, 'drawer_open', 0) && !drawer.is_opened()
-      call g:db_ui_instance.open()
+      call db_ui#open('')
     endif
   endif
 
