@@ -87,6 +87,7 @@ function! db_ui#views#save() abort
   " --- Open query buffers ---
   let state.query_buffers = []
   let active_bufnr = bufnr()
+  let cache = db_ui#dbout#get_cache()
   for b in range(1, bufnr('$'))
     if bufexists(b) && !empty(getbufvar(b, 'dbui_db_key_name', ''))
       let qbuf = {
@@ -94,19 +95,19 @@ function! db_ui#views#save() abort
             \ 'dbui_db_key_name': getbufvar(b, 'dbui_db_key_name'),
             \ 'bind_params': getbufvar(b, 'dbui_bind_params', []),
             \ 'is_active': (b == active_bufnr),
+            \ '_dbout_content': get(cache, b, []),
             \ }
       call add(state.query_buffers, qbuf)
     endif
   endfor
 
   " --- Dbout content cache ---
-  " We save the content mapping by query file path instead of bufnr
+  " Save content mapping by query file path instead of bufnr
   let state.dbout_cache = {}
-  for [qbufnr, content] in items(db_ui#dbout#get_cache())
-    let qbuf_path = bufname(str2nr(qbufnr))
-    if !empty(qbuf_path)
-      let state.dbout_cache[qbuf_path] = content
-    endif
+  for qbuf in state.query_buffers
+    if !empty(qbuf.file)
+      let state.dbout_cache[qbuf.file] = qbuf._dbout_content
+    endfor
   endfor
 
   " --- Save to file ---
@@ -172,9 +173,19 @@ function! db_ui#views#restore() abort
     exe 'buffer ' . restored_active
   endif
 
-  " --- Restore dbout cache ---
+  " --- Restore dbout cache to current query buffers ---
   if has_key(state, 'dbout_cache')
-    call db_ui#dbout#load_cache(state.dbout_cache)
+    let cache = db_ui#dbout#get_cache()
+    for b in range(1, bufnr('$'))
+      if bufexists(b) && !empty(getbufvar(b, 'dbui_db_key_name', ''))
+        let f = bufname(b)
+        if has_key(state.dbout_cache, f) && !empty(state.dbout_cache[f])
+          let cache[b] = state.dbout_cache[f]
+          " Trigger switch_to_result to display the content in dbout window
+          call db_ui#dbout#switch_to_result(b)
+        endif
+      endif
+    endfor
   endif
 
   " --- Restore drawer state ---
