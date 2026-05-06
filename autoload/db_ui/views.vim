@@ -165,8 +165,8 @@ function! db_ui#views#save() abort
   let winid_to_bufname = {}
   for w in range(1, winnr('$'))
     let winid = win_getid(w)
-    let bname = winbufname(winid)
-    let winid_to_bufname[winid] = bname
+    let bnr = winbufnr(winid)
+    let winid_to_bufname[winid] = bufname(bnr)
   endfor
   let state.win_layout = s:convert_layout(raw_layout, winid_to_bufname)
 
