@@ -107,7 +107,7 @@ function! db_ui#views#save() abort
   for qbuf in state.query_buffers
     if !empty(qbuf.file)
       let state.dbout_cache[qbuf.file] = qbuf._dbout_content
-    endfor
+    endif
   endfor
 
   " --- Save to file ---
