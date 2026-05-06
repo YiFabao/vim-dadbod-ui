@@ -485,3 +485,13 @@ function! s:get_db(saved_query_db) abort
   let selected_db = s:dbui_instance.dbs[selected_db.key_name]
   return selected_db
 endfunction
+
+function! db_ui#get_instance() abort
+  call s:init()
+  return s:dbui_instance
+endfunction
+
+function! db_ui#get_drawer() abort
+  call s:init()
+  return s:dbui_instance.drawer
+endfunction

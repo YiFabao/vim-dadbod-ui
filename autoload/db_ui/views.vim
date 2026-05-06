@@ -10,11 +10,12 @@ function! db_ui#views#get_save_path() abort
 endfunction
 
 function! db_ui#views#save() abort
-  if empty(g:db_ui_instance)
+  let dbui = db_ui#get_instance()
+  if empty(dbui)
     return db_ui#notifications#error('DBUI is not initialized')
   endif
 
-  let drawer = g:db_ui_instance.drawer
+  let drawer = dbui.drawer
   if empty(drawer) || empty(drawer.dbui)
     return db_ui#notifications#error('No drawer available')
   endif
@@ -131,7 +132,7 @@ function! db_ui#views#restore() abort
     if !empty(qbuf.file) && filereadable(qbuf.file)
       let edit_action = restored_count == 0 ? 'edit' : 'split'
       " Open the buffer via query interface
-      let drawer = g:db_ui_instance.drawer
+      let drawer = db_ui#get_drawer()
       if !empty(drawer)
         let query = drawer.get_query()
         let open_item = {
