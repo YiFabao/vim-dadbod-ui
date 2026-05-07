@@ -442,7 +442,7 @@ endfunction
 
 
 if exists('*nvim_open_win') || exists('*popup_create')
-  if empty(g:db_ui_disable_progress_bar)
+  if empty(get(g:, 'db_ui_disable_progress_bar', 0))
     augroup dbui_async_queries_dbout
       autocmd!
       autocmd User DBQueryPre call s:log('[EVENT] DBQueryPre triggered') | call s:progress_show()
