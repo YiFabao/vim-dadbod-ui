@@ -19,7 +19,7 @@ endfunction
 
 " Helper: recursively restore window layout from saved tree
 " layout is ['row'|'col', [...]] or ['leaf', bufname]
-function! s:restore_window_layout(layout, file_to_qbuf, file_to_buf, active_ref) abort
+function! s:restore_window_layout(layout, file_to_qbuf, file_to_buf, ctx) abort
   if a:layout[0] ==# 'leaf'
     let bufname = a:layout[1]
     if !empty(bufname) && has_key(a:file_to_qbuf, bufname)
@@ -34,7 +34,7 @@ function! s:restore_window_layout(layout, file_to_qbuf, file_to_buf, active_ref)
       endif
       let a:file_to_buf[bufname] = bufnr('%')
       if get(qbuf, 'is_active', 0)
-        let a:active_ref = bufnr('%')
+        let a:ctx.active_bufnr = bufnr('%')
       endif
     endif
   elseif a:layout[0] ==# 'row' || a:layout[0] ==# 'col'
@@ -44,7 +44,7 @@ function! s:restore_window_layout(layout, file_to_qbuf, file_to_buf, active_ref)
     endif
 
     " Open first child in current window
-    call s:restore_window_layout(children[0], a:file_to_qbuf, a:file_to_buf, a:active_ref)
+    call s:restore_window_layout(children[0], a:file_to_qbuf, a:file_to_buf, a:ctx)
 
     " Create splits for remaining children
     for i in range(1, len(children) - 1)
@@ -53,7 +53,7 @@ function! s:restore_window_layout(layout, file_to_qbuf, file_to_buf, active_ref)
       else
         execute 'botright split'
       endif
-      call s:restore_window_layout(children[i], a:file_to_qbuf, a:file_to_buf, a:active_ref)
+      call s:restore_window_layout(children[i], a:file_to_qbuf, a:file_to_buf, a:ctx)
     endfor
   endif
 endfunction
