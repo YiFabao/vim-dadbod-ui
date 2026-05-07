@@ -213,22 +213,6 @@ function! s:get_cell_line_number(scheme) abort
   return a:scheme.cell_line_number
 endfunction
 
-" Log helper: writes debug info to log file
-let s:log_file = ''
-function! s:log(msg) abort
-  if empty(s:log_file)
-    let base = get(g:, 'db_ui_save_location', expand('~/.local/share/nvim/dadbod_ui'))
-    let s:log_file = base . '/.progress_debug.log'
-  endif
-  let dir = fnamemodify(s:log_file, ':h')
-  if !isdirectory(dir)
-    call mkdir(dir, 'p')
-  endif
-  let timestamp = strftime('%Y-%m-%d %H:%M:%S')
-  let log_line = '[' . timestamp . '] ' . a:msg
-  call writefile([log_line], s:log_file, 'a')
-endfunction
-
 let s:progress_icons = ['/', '—', '\', '|']
 let s:progress_buffers = {}
 let s:progress = {
@@ -376,13 +360,9 @@ function! s:progress_reset_positions()
 endfunction
 
 function! s:progress_show_neovim(path) abort
-  let bufname =  !empty(a:path) ? a:path : bufname()
-  let outwin = win_getid(bufwinnr(bufname))
-
-  " Debug logging
-  call s:log('[PROGRESS_SHOW] bufname=' . bufname . ', outwin=' . outwin)
+  " Use the current window where the query is being executed
+  let outwin = win_getid(winnr())
   if outwin <= 0
-    call s:log('[PROGRESS_SHOW] WARNING: Invalid window ID, skipping')
     return
   endif
 
@@ -391,7 +371,6 @@ function! s:progress_show_neovim(path) abort
   let progress.buf = nvim_create_buf(v:false, v:true)
   call nvim_buf_set_lines(progress.buf, 0, -1, v:false, ['| Execute query - 0.0s'])
   let [row, col] = s:progress_winpos(outwin)
-  call s:log('[PROGRESS_SHOW] row=' . row . ', col=' . col)
   let opts = {
         \ 'relative': 'editor',
         \ 'width': 24,
@@ -406,14 +385,12 @@ function! s:progress_show_neovim(path) abort
     let opts.border = 'rounded'
   endif
   let progress.win = nvim_open_win(progress.buf, v:false, opts)
-  call s:log('[PROGRESS_SHOW] Created progress window, win=' . progress.win)
   let progress.timer = timer_start(100, function('s:progress_tick', [progress]), { 'repeat': -1 })
-  let s:progress_buffers[bufname] = progress
+  let s:progress_buffers[bufname()] = progress
 endfunction
 
 function! s:progress_show_vim(path)
-  let bufname = !empty(a:path) ? a:path : bufname()
-  let outwin = bufwinnr(bufname)
+  let outwin = winnr()
   let pos = win_screenpos(outwin)
   let progress = copy(s:progress)
   let progress.outwin = outwin
@@ -428,7 +405,7 @@ function! s:progress_show_vim(path)
         \ 'border': [],
         \ })
   let progress.timer = timer_start(100, function('s:progress_tick', [progress]), { 'repeat': -1 })
-  let s:progress_buffers[bufname] = progress
+  let s:progress_buffers[bufname()] = progress
 endfunction
 
 function! s:progress_show(...)
@@ -445,14 +422,10 @@ if exists('*nvim_open_win') || exists('*popup_create')
   if empty(get(g:, 'db_ui_disable_progress_bar', 0))
     augroup dbui_async_queries_dbout
       autocmd!
-      autocmd User DBQueryPre call s:log('[EVENT] DBQueryPre triggered') | call s:progress_show()
-      autocmd User DBQueryPost call s:log('[EVENT] DBQueryPost triggered') | call s:progress_hide()
-      autocmd User *DBExecutePre call s:log('[EVENT] ' . expand('<amatch>') . ' DBExecutePre triggered, path=' . expand('<amatch>:h')) | call s:progress_show(expand('<amatch>:h'))
-      autocmd User *DBExecutePost call s:log('[EVENT] ' . expand('<amatch>') . ' DBExecutePost triggered') | call s:progress_hide(expand('<amatch>:h'))
+      autocmd User DBQueryPre call s:progress_show()
+      autocmd User DBQueryPost call s:progress_hide()
+      autocmd User *DBExecutePre call s:progress_show()
+      autocmd User *DBExecutePost call s:progress_hide()
     augroup END
-  else
-    call s:log('[INIT] Progress bar is disabled (g:db_ui_disable_progress_bar=1)')
   endif
-else
-  call s:log('[INIT] Progress bar not available (nvim_open_win/popup_create not found)')
 endif
