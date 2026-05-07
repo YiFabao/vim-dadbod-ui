@@ -215,20 +215,19 @@ function! s:query.execute_query(...) abort
   let is_visual_mode = get(a:, 1, 0)
   let lines = self.get_lines(is_visual_mode)
   call s:start_query()
-  if !is_visual_mode && search(s:bind_param_rgx, 'n') <= 0
-    call db_ui#utils#print_debug({ 'message': 'Executing whole buffer', 'command': '%DB' })
-    silent! exe '%DB'
-  else
-    let db = self.drawer.dbui.dbs[b:dbui_db_key_name]
-    call self.execute_lines(db, lines, is_visual_mode)
-  endif
-  let has_async = exists('*db#cancel')
-  if has_async
-    call db_ui#notifications#info('Executing query...')
-  endif
-  if !has_async
-    call s:print_query_time()
-  endif
+  call db_ui#dbout#show_progress()
+  try
+    if !is_visual_mode && search(s:bind_param_rgx, 'n') <= 0
+      call db_ui#utils#print_debug({ 'message': 'Executing whole buffer', 'command': '%DB' })
+      silent! exe '%DB'
+    else
+      let db = self.drawer.dbui.dbs[b:dbui_db_key_name]
+      call self.execute_lines(db, lines, is_visual_mode)
+    endif
+  finally
+    call db_ui#dbout#hide_progress()
+  endtry
+  call s:print_query_time()
   let self.last_query = lines
 endfunction
 

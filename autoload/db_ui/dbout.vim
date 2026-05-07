@@ -415,17 +415,31 @@ function! s:progress_show(...)
     call s:progress_show_vim(get(a:, 1, ''))
   endif
   call s:progress_reset_positions()
+  " Force screen update so progress is visible during blocking query
+  redraw
 endfunction
 
-
-if exists('*nvim_open_win') || exists('*popup_create')
-  if empty(get(g:, 'db_ui_disable_progress_bar', 0))
-    augroup dbui_async_queries_dbout
-      autocmd!
-      autocmd User DBQueryPre call s:progress_show()
-      autocmd User DBQueryPost call s:progress_hide()
-      autocmd User *DBExecutePre call s:progress_show()
-      autocmd User *DBExecutePost call s:progress_hide()
-    augroup END
+function! s:progress_hide(...) abort
+  let bufname = a:0 > 0 ? a:1 : bufname()
+  let progress = get(s:progress_buffers, bufname, {})
+  if empty(progress)
+    return
   endif
-endif
+  if has('nvim')
+    silent! call nvim_win_close(progress.win, v:true)
+  else
+    silent! call popup_close(progress.win)
+  endif
+  silent! call timer_stop(progress.timer)
+  unlet! s:progress_buffers[bufname]
+  call s:progress_reset_positions()
+endfunction
+
+" Public API
+function! db_ui#dbout#show_progress() abort
+  call s:progress_show()
+endfunction
+
+function! db_ui#dbout#hide_progress() abort
+  call s:progress_hide()
+endfunction
