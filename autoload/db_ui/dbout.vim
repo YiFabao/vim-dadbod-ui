@@ -314,9 +314,13 @@ function! s:progress_tick(progress, timer) abort
     let a:progress.icon_counter = 0
   endif
   let secs = string(a:progress.counter * 0.001).'s'
-  let content = ' '.s:progress_icons[a:progress.icon_counter].' Execute query - '.secs
+  let icon = s:progress_icons[a:progress.icon_counter]
+  let content = ' ' . icon . '  Executing query... ' . secs
   if has('nvim')
     call nvim_buf_set_lines(a:progress.buf, 0, -1, v:false, [content])
+    " Keep highlight
+    call nvim_buf_clear_namespace(a:progress.buf, -1, 0, -1)
+    call nvim_buf_add_highlight(a:progress.buf, -1, 'DiagnosticInfo', 0, 0, -1)
   else
     call popup_settext(a:progress.win, content)
   endif
@@ -369,20 +373,30 @@ function! s:progress_show_neovim(path) abort
   let progress = copy(s:progress)
   let progress.outwin = outwin
   let progress.buf = nvim_create_buf(v:false, v:true)
-  call nvim_buf_set_lines(progress.buf, 0, -1, v:false, ['| Execute query - 0.0s'])
+
+  let line = ' 󰐍  Executing query...'
+  call nvim_buf_set_lines(progress.buf, 0, -1, v:false, [line])
+
+  " Set buffer highlight for better appearance
+  call nvim_buf_add_highlight(progress.buf, -1, 'DiagnosticInfo', 0, 0, -1)
+
   let [row, col] = s:progress_winpos(outwin)
+  let width = strdisplaywidth(line) + 2
   let opts = {
         \ 'relative': 'editor',
-        \ 'width': 24,
+        \ 'width': width,
         \ 'height': 1,
         \ 'row': row - 2,
         \ 'col': col,
         \ 'focusable': v:false,
-        \ 'style': 'minimal'
+        \ 'style': 'minimal',
+        \ 'zindex': 100
         \ }
 
   if has('nvim-0.5')
-    let opts.border = 'rounded'
+    let opts.border = ['▁', '▕', '▁', ' ']
+    let opts.title = ' ⚡ DB '
+    let opts.title_pos = 'center'
   endif
   let progress.win = nvim_open_win(progress.buf, v:false, opts)
   let progress.timer = timer_start(100, function('s:progress_tick', [progress]), { 'repeat': -1 })
