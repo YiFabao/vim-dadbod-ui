@@ -111,11 +111,42 @@ function! db_ui#views#save() abort
   let cache = db_ui#dbout#get_cache()
 
   call s:log('[SAVE] Starting save view, active_bufnr=' . active_bufnr)
-  call s:log('[SAVE] Current buffer filetype=' . &filetype . ', dbui_db_key_name=' . getbufvar(active_bufnr, 'dbui_db_key_name', 'NOT_SET'))
+  call s:log('[SAVE] Current window filetype=' . &filetype)
 
-  " Only save the current window's query buffer, not all buffers
-  let b = active_bufnr
-  if bufexists(b) && !empty(getbufvar(b, 'dbui_db_key_name', ''))
+  " Find the query buffer to save:
+  " 1. First try current window's buffer (if it's a query buffer)
+  " 2. Otherwise, search all windows for a query buffer
+  " 3. Fallback: search all buffers for any query buffer
+  let b = -1
+  if !empty(getbufvar(active_bufnr, 'dbui_db_key_name', ''))
+    let b = active_bufnr
+    call s:log('[SAVE] Using current window buffer as query buffer')
+  else
+    " Search all visible windows for a query buffer
+    for w in range(1, winnr('$'))
+      let winid = win_getid(w)
+      let bnr = winbufnr(winid)
+      if bnr > 0 && !empty(getbufvar(bnr, 'dbui_db_key_name', ''))
+        let b = bnr
+        call s:log('[SAVE] Found query buffer in window ' . w . ': bufnr=' . b)
+        break
+      endif
+    endfor
+
+    if b <= 0
+      call s:log('[SAVE] No query buffer in windows, searching all buffers')
+      " Fallback: find any query buffer
+      for buf in range(1, bufnr('$'))
+        if bufexists(buf) && !empty(getbufvar(buf, 'dbui_db_key_name', ''))
+          let b = buf
+          call s:log('[SAVE] Found query buffer: ' . b)
+          break
+        endif
+      endfor
+    endif
+  endif
+
+  if b > 0 && bufexists(b)
     let qbuf = {
           \ 'file': bufname(b),
           \ 'dbui_db_key_name': getbufvar(b, 'dbui_db_key_name'),
@@ -126,7 +157,7 @@ function! db_ui#views#save() abort
     call add(state.query_buffers, qbuf)
     call s:log('[SAVE] Saved query buffer: ' . qbuf.file . ', db=' . qbuf.dbui_db_key_name)
   else
-    call s:log('[SAVE] WARNING: No query buffer found. bufexists=' . bufexists(b) . ', dbui_db_key_name=' . getbufvar(b, 'dbui_db_key_name', 'EMPTY'))
+    call s:log('[SAVE] WARNING: No query buffer found at all')
   endif
 
   " No need to save window layout since we only have one buffer
