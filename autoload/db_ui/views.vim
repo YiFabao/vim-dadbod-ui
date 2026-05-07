@@ -1,5 +1,26 @@
 " Save and restore view state
 let s:view_file = ''
+let s:log_file = ''
+
+" Log helper: writes debug info to log file
+function! s:log(msg) abort
+  let log_path = s:get_log_file()
+  let dir = fnamemodify(log_path, ':h')
+  if !isdirectory(dir)
+    call mkdir(dir, 'p')
+  endif
+  let timestamp = strftime('%Y-%m-%d %H:%M:%S')
+  let log_line = '[' . timestamp . '] ' . a:msg
+  call writefile([log_line], log_path, 'a')
+endfunction
+
+function! s:get_log_file() abort
+  if empty(s:log_file)
+    let base = get(g:, 'db_ui_save_location', expand('~/.local/share/db_ui'))
+    let s:log_file = base . '/.view_debug.log'
+  endif
+  return s:log_file
+endfunction
 
 function! db_ui#views#get_save_path() abort
   if empty(s:view_file)
@@ -89,6 +110,9 @@ function! db_ui#views#save() abort
   let active_bufnr = bufnr()
   let cache = db_ui#dbout#get_cache()
 
+  call s:log('[SAVE] Starting save view, active_bufnr=' . active_bufnr)
+  call s:log('[SAVE] Current buffer filetype=' . &filetype . ', dbui_db_key_name=' . getbufvar(active_bufnr, 'dbui_db_key_name', 'NOT_SET'))
+
   " Only save the current window's query buffer, not all buffers
   let b = active_bufnr
   if bufexists(b) && !empty(getbufvar(b, 'dbui_db_key_name', ''))
@@ -100,6 +124,9 @@ function! db_ui#views#save() abort
           \ '_dbout_content': get(cache, b, []),
           \ }
     call add(state.query_buffers, qbuf)
+    call s:log('[SAVE] Saved query buffer: ' . qbuf.file . ', db=' . qbuf.dbui_db_key_name)
+  else
+    call s:log('[SAVE] WARNING: No query buffer found. bufexists=' . bufexists(b) . ', dbui_db_key_name=' . getbufvar(b, 'dbui_db_key_name', 'EMPTY'))
   endif
 
   " No need to save window layout since we only have one buffer
@@ -123,48 +150,70 @@ function! db_ui#views#save() abort
   let json_str = json_encode(state)
   call writefile([json_str], save_path)
 
+  call s:log('[SAVE] View saved successfully. query_buffers count=' . len(state.query_buffers))
   call db_ui#notifications#info('View saved to ' . save_path)
 endfunction
 
 function! db_ui#views#restore() abort
+  call s:log('[RESTORE] === Starting restore ===')
   let save_path = db_ui#views#get_save_path()
   if !filereadable(save_path)
+    call s:log('[RESTORE] ERROR: No saved view found at ' . save_path)
     return db_ui#notifications#error('No saved view found at ' . save_path)
   endif
 
+  call s:log('[RESTORE] Found saved view file: ' . save_path)
+
   let lines = readfile(save_path)
   if empty(lines)
+    call s:log('[RESTORE] ERROR: Saved view file is empty')
     return db_ui#notifications#error('Saved view file is empty')
   endif
 
   let state = json_decode(lines[0])
+  call s:log('[RESTORE] State keys: ' . join(keys(state), ', '))
 
   " --- Restore query buffer (only one buffer, no window layout) ---
   let ctx = { 'active_bufnr': -1, 'file_to_buf': {} }
 
   if has_key(state, 'query_buffers') && !empty(state.query_buffers)
+    call s:log('[RESTORE] Found query_buffers, count=' . len(state.query_buffers))
     let qbuf = state.query_buffers[0]
+    call s:log('[RESTORE] First qbuf.file="' . get(qbuf, 'file', 'EMPTY') . '"')
+
     if !empty(qbuf.file)
+      call s:log('[RESTORE] Checking filereadable: ' . qbuf.file)
       if filereadable(qbuf.file)
+        call s:log('[RESTORE] File exists, executing edit')
         execute 'edit ' . fnameescape(qbuf.file)
         let ctx.file_to_buf[qbuf.file] = bufnr('%')
+        call s:log('[RESTORE] After edit, bufnr=' . bufnr('%'))
 
         " Restore bind params
         if has_key(qbuf, 'bind_params') && !empty(qbuf.bind_params)
           let b:dbui_bind_params = qbuf.bind_params
+          call s:log('[RESTORE] Restored bind_params')
         endif
 
         let ctx.active_bufnr = bufnr('%')
+        call s:log('[RESTORE] Set active_bufnr=' . ctx.active_bufnr)
       else
+        call s:log('[RESTORE] WARNING: File not found: ' . qbuf.file)
         call db_ui#notifications#warning('Saved query file not found: ' . qbuf.file)
       endif
+    else
+      call s:log('[RESTORE] WARNING: qbuf.file is empty')
     endif
   else
+    call s:log('[RESTORE] WARNING: No query_buffers in state or empty')
     call db_ui#notifications#warning('No query buffers found in saved view.')
   endif
 
+  call s:log('[RESTORE] Before activate check: active_bufnr=' . ctx.active_bufnr)
+
   " Activate the restored buffer
   if ctx.active_bufnr > 0
+    call s:log('[RESTORE] Activating buffer: ' . ctx.active_bufnr)
     execute 'buffer ' . ctx.active_bufnr
   endif
 
@@ -263,5 +312,6 @@ function! db_ui#views#restore() abort
     endif
   endif
 
+  call s:log('[RESTORE] === Restore completed successfully ===')
   call db_ui#notifications#info('View restored')
 endfunction
