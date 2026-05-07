@@ -314,6 +314,7 @@ function! s:progress_tick(progress, timer) abort
   let content = ' Executing query... ' . secs
   if has('nvim')
     call nvim_buf_set_lines(a:progress.buf, 0, -1, v:false, [content])
+    redraw
   else
     call popup_settext(a:progress.win, content)
   endif
@@ -356,7 +357,6 @@ function! s:progress_reset_positions()
 endfunction
 
 function! s:progress_show_neovim(path) abort
-  " Use the current window where the query is being executed
   let outwin = win_getid(winnr())
   if outwin <= 0
     return
@@ -380,7 +380,6 @@ function! s:progress_show_neovim(path) abort
         \ }
 
   let progress.win = nvim_open_win(progress.buf, v:false, opts)
-  let progress.timer = timer_start(100, function('s:progress_tick', [progress]), { 'repeat': -1 })
   let s:progress_buffers[bufname()] = progress
 endfunction
 
@@ -390,16 +389,15 @@ function! s:progress_show_vim(path)
   let progress = copy(s:progress)
   let progress.outwin = outwin
   let [row, col] = s:progress_winpos(outwin)
-  let progress.win = popup_create('| Execute query - 0.0s', {
+  let progress.win = popup_create(' Executing query...', {
         \ 'line': row,
         \ 'col': col,
-        \ 'minwidth': 24,
-        \ 'maxwidth': 24,
+        \ 'minwidth': 20,
+        \ 'maxwidth': 20,
         \ 'minheight': 1,
         \ 'maxheight': 1,
         \ 'border': [],
         \ })
-  let progress.timer = timer_start(100, function('s:progress_tick', [progress]), { 'repeat': -1 })
   let s:progress_buffers[bufname()] = progress
 endfunction
 
@@ -410,7 +408,6 @@ function! s:progress_show(...)
     call s:progress_show_vim(get(a:, 1, ''))
   endif
   call s:progress_reset_positions()
-  " Force screen update so progress is visible during blocking query
   redraw
 endfunction
 
