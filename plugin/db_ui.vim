@@ -134,9 +134,3 @@ command! DBUIAddConnection call db_ui#connections#add()
 command! DBUIFindBuffer call db_ui#find_buffer()
 command! DBUIRenameBuffer call db_ui#rename_buffer()
 command! DBUILastQueryInfo call db_ui#print_last_query_info()
-command! DBUISaveView call db_ui#views#save()
-command! DBUIRestoreView call db_ui#views#restore()
-
-" Plug mappings for view save/restore (global, not buffer-local)
-nnoremap <silent> <Plug>(DBUI_SaveView) :DBUISaveView<CR>
-nnoremap <silent> <Plug>(DBUI_RestoreView) :DBUIRestoreView<CR>
