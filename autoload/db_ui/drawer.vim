@@ -1,5 +1,6 @@
 let s:drawer_instance = {}
 let s:drawer = {}
+let s:search_win = -1
 
 function db_ui#drawer#new(dbui)
   let s:drawer_instance = s:drawer.new(a:dbui)
@@ -1159,7 +1160,7 @@ function! s:search_files() abort
   let s:search_query = ''
   call s:drawer_instance.render({ 'queries': 1 })
   call cursor(1, 1)
-  echo 'Search: '
+  call s:show_search_prompt()
 
   try
     while 1
@@ -1167,18 +1168,21 @@ function! s:search_files() abort
 
       if char == "\<CR>"
         " Enter - confirm search
+        call s:hide_search_prompt()
         break
       endif
 
       if char == "\<Esc>"
         " Escape - cancel search
         let s:search_query = ''
+        call s:hide_search_prompt()
         break
       endif
 
       if char == "\<C-c>"
         " Ctrl-C - cancel search
         let s:search_query = ''
+        call s:hide_search_prompt()
         break
       endif
 
@@ -1196,15 +1200,11 @@ function! s:search_files() abort
       endif
 
       call s:drawer_instance.render({ 'queries': 1 })
-
-      if empty(s:search_query)
-        echo 'Search: '
-      else
-        echo 'Search: '.s:search_query
-      endif
+      call s:show_search_prompt()
     endwhile
   catch /^Vim:Interrupt$/
     let s:search_query = ''
+    call s:hide_search_prompt()
   endtry
 
   " On Enter, jump to first match and keep the filtered view
@@ -1265,4 +1265,58 @@ function! s:search_content() abort
   endif
 
   lua require('db_ui.telescope').run_search(vim.api.nvim_eval('db.save_path'))
+endfunction
+
+" Search prompt using float window to avoid noice.nvim interference
+function! s:show_search_prompt() abort
+  if !has('nvim')
+    return
+  endif
+
+  let prompt = 'Search: '
+  if !empty(s:search_query)
+    let prompt .= s:search_query
+  endif
+
+  " Close existing window
+  if s:search_win > 0
+    silent! call nvim_win_close(s:search_win, v:true)
+  endif
+
+  let buf = nvim_create_buf(v:false, v:true)
+  call nvim_buf_set_lines(buf, 0, -1, v:false, [prompt])
+
+  let winnr = win_getid(winnr())
+  let [row, col] = [0, 0]
+  try
+    let pos = win_screenpos(winnr)
+    let height = winheight(winnr)
+    let row = pos[0] + height
+    let col = pos[1]
+  catch
+    let row = &lines - 2
+    let col = 0
+  endtry
+
+  let opts = {
+        \ 'relative': 'editor',
+        \ 'width': len(prompt) + 2,
+        \ 'height': 1,
+        \ 'row': row,
+        \ 'col': col,
+        \ 'focusable': v:false,
+        \ 'style': 'minimal'
+        \ }
+  if has('nvim-0.5')
+    let opts.border = 'rounded'
+  endif
+
+  let s:search_win = nvim_open_win(buf, v:false, opts)
+endfunction
+
+function! s:hide_search_prompt() abort
+  if s:search_win > 0
+    silent! call nvim_win_close(s:search_win, v:true)
+    let s:search_win = -1
+  endif
 endfunction
