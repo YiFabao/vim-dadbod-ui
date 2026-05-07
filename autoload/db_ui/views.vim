@@ -144,17 +144,23 @@ function! db_ui#views#restore() abort
 
   if has_key(state, 'query_buffers') && !empty(state.query_buffers)
     let qbuf = state.query_buffers[0]
-    if !empty(qbuf.file) && filereadable(qbuf.file)
-      execute 'edit ' . fnameescape(qbuf.file)
-      let ctx.file_to_buf[qbuf.file] = bufnr('%')
+    if !empty(qbuf.file)
+      if filereadable(qbuf.file)
+        execute 'edit ' . fnameescape(qbuf.file)
+        let ctx.file_to_buf[qbuf.file] = bufnr('%')
 
-      " Restore bind params
-      if has_key(qbuf, 'bind_params') && !empty(qbuf.bind_params)
-        let b:dbui_bind_params = qbuf.bind_params
+        " Restore bind params
+        if has_key(qbuf, 'bind_params') && !empty(qbuf.bind_params)
+          let b:dbui_bind_params = qbuf.bind_params
+        endif
+
+        let ctx.active_bufnr = bufnr('%')
+      else
+        call db_ui#notifications#warning('Saved query file not found: ' . qbuf.file)
       endif
-
-      let ctx.active_bufnr = bufnr('%')
     endif
+  else
+    call db_ui#notifications#warning('No query buffers found in saved view.')
   endif
 
   " Activate the restored buffer
