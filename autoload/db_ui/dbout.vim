@@ -310,21 +310,13 @@ endfunction
 
 function! s:progress_tick(progress, timer) abort
   let a:progress.counter += 100
-  if a:progress.icon_counter > 3
-    let a:progress.icon_counter = 0
-  endif
-  let secs = string(a:progress.counter * 0.001).'s'
-  let icon = s:progress_icons[a:progress.icon_counter]
-  let content = ' ' . icon . '  Executing query... ' . secs
+  let secs = string(a:progress.counter * 0.001) . 's'
+  let content = ' Executing query... ' . secs
   if has('nvim')
     call nvim_buf_set_lines(a:progress.buf, 0, -1, v:false, [content])
-    " Keep highlight
-    call nvim_buf_clear_namespace(a:progress.buf, -1, 0, -1)
-    call nvim_buf_add_highlight(a:progress.buf, -1, 'DiagnosticInfo', 0, 0, -1)
   else
     call popup_settext(a:progress.win, content)
   endif
-  let a:progress.icon_counter += 1
 endfunction
 
 function! s:progress_winpos(win)
@@ -374,30 +366,19 @@ function! s:progress_show_neovim(path) abort
   let progress.outwin = outwin
   let progress.buf = nvim_create_buf(v:false, v:true)
 
-  let line = ' 󰐍  Executing query...'
-  call nvim_buf_set_lines(progress.buf, 0, -1, v:false, [line])
-
-  " Set buffer highlight for better appearance
-  call nvim_buf_add_highlight(progress.buf, -1, 'DiagnosticInfo', 0, 0, -1)
+  call nvim_buf_set_lines(progress.buf, 0, -1, v:false, [' Executing query...'])
 
   let [row, col] = s:progress_winpos(outwin)
-  let width = strdisplaywidth(line) + 2
   let opts = {
         \ 'relative': 'editor',
-        \ 'width': width,
+        \ 'width': 20,
         \ 'height': 1,
         \ 'row': row - 2,
         \ 'col': col,
         \ 'focusable': v:false,
-        \ 'style': 'minimal',
-        \ 'zindex': 100
+        \ 'style': 'minimal'
         \ }
 
-  if has('nvim-0.5')
-    let opts.border = ['▁', '▕', '▁', ' ']
-    let opts.title = ' ⚡ DB '
-    let opts.title_pos = 'center'
-  endif
   let progress.win = nvim_open_win(progress.buf, v:false, opts)
   let progress.timer = timer_start(100, function('s:progress_tick', [progress]), { 'repeat': -1 })
   let s:progress_buffers[bufname()] = progress
