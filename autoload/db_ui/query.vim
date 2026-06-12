@@ -214,6 +214,10 @@ endfunction
 function! s:query.execute_query(...) abort
   let is_visual_mode = get(a:, 1, 0)
   let lines = self.get_lines(is_visual_mode)
+  " 安全检查：UPDATE/DELETE 必须包含 WHERE 条件
+  if g:db_ui_safe_query && !s:check_dangerous_query(lines)
+    return
+  endif
   call s:start_query()
   call db_ui#dbout#show_progress()
   try
@@ -509,6 +513,48 @@ function s:finish_query() abort
   if has_key(s:query_info, 'query_bufnr')
     call db_ui#dbout#mark_query_executing(s:query_info.query_bufnr, 0)
   endif
+endfunction
+
+" 检查 UPDATE/DELETE 是否包含 WHERE 条件，防止误操作全表
+function! s:check_dangerous_query(lines) abort
+  let sql = join(a:lines, "\n")
+  " 去除单行注释
+  let sql = substitute(sql, '--[^\n]*', '', 'g')
+  " 去除多行注释
+  let sql = substitute(sql, '/\*.\{-}\*/', '', 'g')
+  let sql_no_newlines = substitute(sql, '\n', ' ', 'g')
+
+  " 快速判断：是否包含 UPDATE 或 DELETE
+  if match(sql_no_newlines, '\c\v^\s*(UPDATE|DELETE)') < 0
+        \ && match(sql_no_newlines, '\c\v;\s*(UPDATE|DELETE)') < 0
+    return 1
+  endif
+
+  " 单条语句（无分号）：整体检查是否包含 WHERE
+  if match(sql, ';') < 0
+    if match(sql, '\c\<WHERE\>') < 0
+      call db_ui#notifications#warning(
+            \ 'Blocked: UPDATE/DELETE without WHERE clause!')
+      return 0
+    endif
+    return 1
+  endif
+
+  " 多条语句：按分号拆分，逐条检查顶层 UPDATE/DELETE
+  let fragments = split(sql, '\c\v;\s*\n')
+  for fragment in fragments
+    let trimmed = substitute(fragment, '\_s\+', ' ', 'g')
+    let trimmed = substitute(trimmed, '^\s\+', '', '')
+    if match(trimmed, '\c\v^(UPDATE|DELETE)') == 0
+      if match(trimmed, '\c\<WHERE\>') < 0
+        call db_ui#notifications#warning(
+              \ 'Blocked: UPDATE/DELETE without WHERE clause!')
+        return 0
+      endif
+    endif
+  endfor
+
+  return 1
 endfunction
 
 function s:print_query_time() abort
